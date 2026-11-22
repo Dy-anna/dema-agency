@@ -15,7 +15,8 @@ run_worker_first = ["/api/*"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "dema-agency"
+database_name = "dema-agency-eu"
+database_id = "0669373a-5e64-49e0-a64a-ce9124511a74"
 migrations_dir = "migrations"
 
 [observability]
