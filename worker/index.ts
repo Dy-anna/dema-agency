@@ -3,6 +3,7 @@ import { fail, type Env } from './_lib/auth'
 import { handleAuth } from './api/auth'
 import { handleQuery } from './api/query'
 import { handleTeam } from './api/team'
+import { ensureSchema } from './schema'
 
 interface WorkerEnv extends Env { ASSETS: Fetcher }
 
@@ -11,6 +12,7 @@ export default {
     const { pathname } = new URL(request.url)
 
     if (pathname.startsWith('/api/')) {
+      await ensureSchema(env)
       const auth = pathname.match(/^\/api\/auth\/([a-z]+)$/)
       if (auth) return handleAuth(request, env, auth[1])
       if (pathname === '/api/team') return handleTeam(request, env)
