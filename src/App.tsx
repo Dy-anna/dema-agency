@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './lib/auth'
-import { supabaseConfigured } from './lib/supabase'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -13,6 +12,7 @@ import Projets from './pages/Projets'
 import ProjetDetail from './pages/ProjetDetail'
 import Calendrier from './pages/Calendrier'
 import Objectifs from './pages/Objectifs'
+import Equipe from './pages/Equipe'
 import type { ReactNode } from 'react'
 
 function GerantOnly({ children }: { children: ReactNode }) {
@@ -21,18 +21,10 @@ function GerantOnly({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  const { session, loading } = useAuth()
+  const { profile, loading } = useAuth()
 
-  if (!supabaseConfigured) {
-    return (
-      <div className="login"><div className="card">
-        <h1>DEMA Agency</h1>
-        <p className="muted">Configuration manquante : renseigne VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.</p>
-      </div></div>
-    )
-  }
   if (loading) return <div className="login"><span className="muted">Chargement…</span></div>
-  if (!session) return <Login />
+  if (!profile) return <Login />
 
   return (
     <Routes>
@@ -47,6 +39,7 @@ export default function App() {
         <Route path="projets/:id" element={<ProjetDetail />} />
         <Route path="calendrier" element={<Calendrier />} />
         <Route path="objectifs" element={<GerantOnly><Objectifs /></GerantOnly>} />
+        <Route path="equipe" element={<Equipe />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

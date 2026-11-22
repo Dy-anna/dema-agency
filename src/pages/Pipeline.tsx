@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { DELAI_RELANCE_JOURS, dateFr, euro, joursDepuis, nomType } from '../lib/format'
 import type { Client, Devis } from '../lib/types'
 
 export default function Pipeline() {
   const { data, error } = useLoad(async () => {
-    const clients = must(await supabase.from('clients').select('*').neq('statut_commercial', 'perdu').order('created_at', { ascending: false })) as Client[]
-    const devis = must(await supabase.from('devis').select('*').neq('statut', 'refuse').order('created_at', { ascending: false })) as Devis[]
+    const clients = must(await db.from('clients').select('*').neq('statut_commercial', 'perdu').order('created_at', { ascending: false })) as Client[]
+    const devis = must(await db.from('devis').select('*').neq('statut', 'refuse').order('created_at', { ascending: false })) as Devis[]
     return { clients, devis }
   })
 

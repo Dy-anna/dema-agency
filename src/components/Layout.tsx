@@ -5,8 +5,8 @@ import { nomRole } from '../lib/format'
 const lien = ({ isActive }: { isActive: boolean }) => 'nav-link' + (isActive ? ' active' : '')
 
 export default function Layout() {
-  const { profile, isGerant, signOut, session } = useAuth()
-  const nom = profile?.nom || session?.user.email || ''
+  const { profile, isGerant, signOut } = useAuth()
+  const nom = profile?.nom || profile?.email || ''
   const initiales = nom.split(/[\s.@_-]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
 
   return (
@@ -30,12 +30,11 @@ export default function Layout() {
           <NavLink to="/projets" className={lien}>Projets &amp; tâches</NavLink>
           <NavLink to="/calendrier" className={lien}>Calendrier</NavLink>
         </div>
-        {isGerant && (
-          <div className="nav-group">
-            <span className="nav-label">PILOTAGE</span>
-            <NavLink to="/objectifs" className={lien}>Objectifs</NavLink>
-          </div>
-        )}
+        <div className="nav-group">
+          <span className="nav-label">PILOTAGE</span>
+          {isGerant && <NavLink to="/objectifs" className={lien}>Objectifs</NavLink>}
+          <NavLink to="/equipe" className={lien}>Équipe &amp; compte</NavLink>
+        </div>
         <div className="user-box">
           <div className="avatar">{initiales || '?'}</div>
           <div className="stack" style={{ gap: 0, minWidth: 0 }}>

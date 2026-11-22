@@ -1,24 +1,27 @@
 # DEMA Agency — CRM
 
-Application web interne de DEMA Agency : clients & prospects, devis, projets & tâches, calendrier, échéancier et objectifs.
+Application web interne de DEMA Agency : clients & prospects, devis, projets & tâches, calendrier, échéancier, objectifs et équipe.
 
 ## Stack
-- React + TypeScript (Vite)
-- Supabase (auth, base de données, RLS)
-- Hébergement : Cloudflare Pages
+- React + TypeScript (Vite) — dossier `src/`
+- API Cloudflare Pages Functions — dossier `functions/` (auth par cookie, données)
+- Base de données Cloudflare D1 `dema-agency` — schéma dans `migrations/`
+- Hébergement : Cloudflare Pages (la base D1 est reliée via `wrangler.toml`)
 
-## Démarrer en local
+## Rôles
+- **Gérant** : accès complet (devis, finance, objectifs, gestion de l'équipe)
+- **Chef de projet / Assistant** : clients, projets, tâches, calendrier — pas de finance
+
+Le tout premier compte créé sur le site devient gérant. Les autres comptes sont ajoutés depuis « Équipe & compte ».
+
+## Développer en local
 ```bash
-cp .env.example .env.local   # renseigner la clé publique Supabase
 npm install
-npm run dev
+npx wrangler d1 migrations apply dema-agency --local
+npm run build && npx wrangler pages dev dist
 ```
-
-## Base de données
-Le schéma est dans `supabase/migrations/0001_dema_agency.sql`.
-Le premier compte créé devient **gérant** ; les suivants sont **assistants** (rôle modifiable par un gérant).
 
 ## Déploiement Cloudflare Pages
 - Commande de build : `npm run build`
 - Dossier de sortie : `dist`
-- Variables : `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- La liaison D1 (`DB`) est lue depuis `wrangler.toml`.

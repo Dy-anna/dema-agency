@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { dateFr, euro, isoDate, nomRole, nomStatutProjet, nomType } from '../lib/format'
@@ -14,11 +14,11 @@ export default function ProjetDetail() {
   const [msg, setMsg] = useState('')
 
   const { data, error, reload, setData } = useLoad(async () => {
-    const projet = must(await supabase.from('projets').select('*').eq('id', id!).single()) as Projet
-    const client = must(await supabase.from('clients').select('*').eq('id', projet.client_id).single()) as Client
-    const taches = must(await supabase.from('taches').select('*').eq('projet_id', id!).order('ordre')) as Tache[]
-    const equipe = must(await supabase.from('profiles').select('id, nom, role').order('nom')) as Profile[]
-    const paiements = isGerant ? (must(await supabase.from('paiements').select('*').eq('projet_id', id!).order('echeance', { nullsFirst: false })) as Paiement[]) : []
+    const projet = must(await db.from('projets').select('*').eq('id', id!).single()) as Projet
+    const client = must(await db.from('clients').select('*').eq('id', projet.client_id).single()) as Client
+    const taches = must(await db.from('taches').select('*').eq('projet_id', id!).order('ordre')) as Tache[]
+    const equipe = must(await db.from('profiles').select('id, nom, role').order('nom')) as Profile[]
+    const paiements = isGerant ? (must(await db.from('paiements').select('*').eq('projet_id', id!).order('echeance', { nullsFirst: false })) as Paiement[]) : []
     return { projet, client, taches, equipe, paiements }
   }, [id, isGerant])
 
@@ -34,16 +34,16 @@ export default function ProjetDetail() {
 
   const majTache = async (t: Tache, patch: Partial<Tache>) => {
     setData({ ...data, taches: taches.map((x) => (x.id === t.id ? { ...x, ...patch } : x)) })
-    const { error } = await supabase.from('taches').update(patch).eq('id', t.id)
+    const { error } = await db.from('taches').update(patch).eq('id', t.id)
     if (error) { setMsg(error.message); reload() }
   }
   const ajouterTache = async () => {
     if (!nouvelleTache.trim()) return
-    await supabase.from('taches').insert({ projet_id: projet.id, groupe: 'Autres', titre: nouvelleTache.trim(), ordre: taches.length })
+    await db.from('taches').insert({ projet_id: projet.id, groupe: 'Autres', titre: nouvelleTache.trim(), ordre: taches.length })
     setNouvelleTache(''); reload()
   }
   const majPaiement = async (p: Paiement, patch: Partial<Paiement>) => {
-    const { error } = await supabase.from('paiements').update(patch).eq('id', p.id)
+    const { error } = await db.from('paiements').update(patch).eq('id', p.id)
     if (error) { setMsg(error.message); return }
     // Acompte reçu → projet en production + tâches générées
     if (patch.recu && p.type === 'acompte' && projet.statut === 'en_attente') {
@@ -53,16 +53,16 @@ export default function ProjetDetail() {
     reload()
   }
   const ajouterPaiement = async () => {
-    await supabase.from('paiements').insert({ projet_id: projet.id, libelle: 'Versement', type: 'versement', montant: 0 })
+    await db.from('paiements').insert({ projet_id: projet.id, libelle: 'Versement', type: 'versement', montant: 0 })
     reload()
   }
   const supprimerPaiement = async (p: Paiement) => {
     if (!confirm(`Supprimer la ligne « ${p.libelle} » ?`)) return
-    await supabase.from('paiements').delete().eq('id', p.id); reload()
+    await db.from('paiements').delete().eq('id', p.id); reload()
   }
   const setStatut = async (statut: Projet['statut']) => {
     if (statut === 'production') await lancerProduction(projet)
-    else await supabase.from('projets').update({ statut }).eq('id', projet.id)
+    else await db.from('projets').update({ statut }).eq('id', projet.id)
     reload()
   }
 

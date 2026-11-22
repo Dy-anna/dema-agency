@@ -1,47 +1,49 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from './supabase'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { api } from './db'
 import type { Profile } from './types'
 
 interface AuthState {
-  session: Session | null
-  profile: Profile | null
+  profile: (Profile & { email: string }) | null
   loading: boolean
+  needsSetup: boolean
   isGerant: boolean
+  refresh: () => Promise<void>
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
-  session: null, profile: null, loading: true, isGerant: false, signOut: async () => {},
+  profile: null, loading: true, needsSetup: false, isGerant: false, refresh: async () => {}, signOut: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<AuthState['profile']>(null)
+  const [needsSetup, setNeedsSetup] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      if (!data.session) setLoading(false)
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s)
-      if (!s) { setProfile(null); setLoading(false) }
-    })
-    return () => sub.subscription.unsubscribe()
+  const refresh = useCallback(async () => {
+    try {
+      const r = await api.me()
+      setProfile(r.user ?? null)
+      setNeedsSetup(Boolean(r.needsSetup))
+    } catch {
+      setProfile(null)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
-    if (!session) return
-    supabase.from('profiles').select('id, nom, role').eq('id', session.user.id).maybeSingle()
-      .then(({ data }) => { setProfile(data as Profile | null); setLoading(false) })
-  }, [session])
+    refresh()
+    const onLogout = () => setProfile(null)
+    window.addEventListener('dema:logout', onLogout)
+    return () => window.removeEventListener('dema:logout', onLogout)
+  }, [refresh])
 
   const value: AuthState = {
-    session, profile, loading,
+    profile, loading, needsSetup,
     isGerant: profile?.role === 'gerant',
-    signOut: async () => { await supabase.auth.signOut() },
+    refresh,
+    signOut: async () => { await api.logout(); setProfile(null) },
   }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { DELAI_RELANCE_JOURS, dateFr, euro, isoDate, joursDepuis, nomType } from '../lib/format'
@@ -11,17 +11,17 @@ export default function Dashboard() {
   const { data, error } = useLoad(async () => {
     const today = isoDate(new Date())
     const [clients, projets, taches] = await Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: false }),
-      supabase.from('projets').select('*').neq('statut', 'livre').order('date_evenement'),
-      supabase.from('taches').select('*').is('assigne_a', null).eq('fait', false).order('ordre').limit(8),
+      db.from('clients').select('*').order('created_at', { ascending: false }),
+      db.from('projets').select('*').neq('statut', 'livre').order('date_evenement'),
+      db.from('taches').select('*').is('assigne_a', null).eq('fait', false).order('ordre').limit(8),
     ])
     let devis: Devis[] = []
     let paiements: (Paiement & { projets: { titre: string } | null })[] = []
     if (isGerant) {
-      devis = must(await supabase.from('devis').select('*, clients(nom, type_prestation, date_evenement)').order('created_at', { ascending: false }))
-      paiements = must(await supabase.from('paiements').select('*, projets(titre)').order('echeance'))
+      devis = must(await db.from('devis').select('*, clients(nom, type_prestation, date_evenement)').order('created_at', { ascending: false }))
+      paiements = must(await db.from('paiements').select('*, projets(titre)').order('echeance'))
     }
-    const allTaches = must(await supabase.from('taches').select('projet_id, fait'))
+    const allTaches = must(await db.from('taches').select('projet_id, fait'))
     return {
       today,
       clients: must(clients) as Client[],

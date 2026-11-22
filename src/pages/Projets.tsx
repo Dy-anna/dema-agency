@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { dateFr, nomStatutProjet, nomType } from '../lib/format'
 import type { Projet, Tache } from '../lib/types'
@@ -7,8 +7,8 @@ import type { Projet, Tache } from '../lib/types'
 export default function Projets() {
   const nav = useNavigate()
   const { data, error } = useLoad(async () => {
-    const projets = must(await supabase.from('projets').select('*').order('date_evenement')) as Projet[]
-    const taches = must(await supabase.from('taches').select('projet_id, fait')) as Pick<Tache, 'projet_id' | 'fait'>[]
+    const projets = must(await db.from('projets').select('*').order('date_evenement')) as Projet[]
+    const taches = must(await db.from('taches').select('projet_id, fait')) as Pick<Tache, 'projet_id' | 'fait'>[]
     return { projets, taches }
   })
 

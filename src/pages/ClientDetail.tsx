@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { STATUTS_DEVIS, dateFr, euro, isoDate, nomStatutProjet, nomType } from '../lib/format'
@@ -16,9 +16,9 @@ export default function ClientDetail() {
   const [msg, setMsg] = useState('')
 
   const { data, error, reload } = useLoad(async () => {
-    const client = must(await supabase.from('clients').select('*').eq('id', id!).single()) as Client
-    const projets = must(await supabase.from('projets').select('*').eq('client_id', id!)) as Projet[]
-    const devis = isGerant ? (must(await supabase.from('devis').select('*').eq('client_id', id!).order('created_at', { ascending: false })) as Devis[]) : []
+    const client = must(await db.from('clients').select('*').eq('id', id!).single()) as Client
+    const projets = must(await db.from('projets').select('*').eq('client_id', id!)) as Projet[]
+    const devis = isGerant ? (must(await db.from('devis').select('*').eq('client_id', id!).order('created_at', { ascending: false })) as Devis[]) : []
     return { client, projets, devis }
   }, [id, isGerant])
 
@@ -29,24 +29,24 @@ export default function ClientDetail() {
   const c = data.client
 
   const save = async () => {
-    const { error } = await supabase.from('clients').update({ ...draft, date_evenement: draft.date_evenement || null }).eq('id', c.id)
+    const { error } = await db.from('clients').update({ ...draft, date_evenement: draft.date_evenement || null }).eq('id', c.id)
     if (error) { setMsg(error.message); return }
     // Garder la date du calendrier alignée
     if (draft.date_evenement && draft.date_evenement !== c.date_evenement) {
-      await supabase.from('evenements').update({ date: draft.date_evenement, titre: draft.nom }).eq('client_id', c.id)
+      await db.from('evenements').update({ date: draft.date_evenement, titre: draft.nom }).eq('client_id', c.id)
     }
     setEdit(false); setMsg('Enregistré.'); reload()
   }
   const update = async (patch: Partial<Client>) => {
-    await supabase.from('clients').update(patch).eq('id', c.id); reload()
+    await db.from('clients').update(patch).eq('id', c.id); reload()
   }
   const marquerPerdu = async () => {
     await update({ statut_commercial: 'perdu' })
-    await supabase.from('evenements').update({ statut: 'annule' }).eq('client_id', c.id).neq('statut', 'confirme')
+    await db.from('evenements').update({ statut: 'annule' }).eq('client_id', c.id).neq('statut', 'confirme')
   }
   const nouveauDevis = async () => {
     const numero = `D-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`
-    const { data: d, error } = await supabase.from('devis').insert({ client_id: c.id, numero }).select('id').single()
+    const { data: d, error } = await db.from('devis').insert({ client_id: c.id, numero }).select('id').single()
     if (error) { setMsg(error.message); return }
     nav(`/devis/${d.id}`)
   }

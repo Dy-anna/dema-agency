@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { TYPES_PRESTATION, dateFr, isoDate, nomStatutEvenement, nomType } from '../lib/format'
 import type { Client, Evenement, StatutEvenement, TypePrestation } from '../lib/types'
@@ -20,8 +20,8 @@ export default function Calendrier() {
   const fin = isoDate(new Date(mois.getFullYear(), mois.getMonth() + 1, 0))
 
   const { data, error, reload } = useLoad(async () => {
-    const evenements = must(await supabase.from('evenements').select('*').gte('date', debut).lte('date', fin).order('date')) as Evenement[]
-    const clients = must(await supabase.from('clients').select('id, nom, type_prestation, date_evenement').neq('statut_commercial', 'perdu').order('nom')) as Client[]
+    const evenements = must(await db.from('evenements').select('*').gte('date', debut).lte('date', fin).order('date')) as Evenement[]
+    const clients = must(await db.from('clients').select('id, nom, type_prestation, date_evenement').neq('statut_commercial', 'perdu').order('nom')) as Client[]
     return { evenements, clients }
   }, [debut, fin])
 
@@ -50,14 +50,14 @@ export default function Calendrier() {
       date: draft.date, type_prestation: draft.type_prestation, statut: draft.statut, client_id: draft.client_id || null,
     }
     const res = draft.id
-      ? await supabase.from('evenements').update(payload).eq('id', draft.id)
-      : await supabase.from('evenements').insert(payload)
+      ? await db.from('evenements').update(payload).eq('id', draft.id)
+      : await db.from('evenements').insert(payload)
     if (res.error) { setErr(res.error.message); return }
     setDraft(null); reload()
   }
   const supprimer = async () => {
     if (!draft?.id || !confirm('Supprimer cet événement du calendrier ?')) return
-    await supabase.from('evenements').delete().eq('id', draft.id)
+    await db.from('evenements').delete().eq('id', draft.id)
     setDraft(null); reload()
   }
 

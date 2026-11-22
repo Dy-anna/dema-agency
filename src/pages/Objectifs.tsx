@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { euro } from '../lib/format'
 import type { Indicateur, Objectif } from '../lib/types'
@@ -38,10 +38,10 @@ export default function Objectifs() {
   const { data, error, reload } = useLoad(async () => {
     const debut = `${annee}-01-01`, fin = `${annee + 1}-01-01`
     const [obj, clients, devis, paiements] = await Promise.all([
-      supabase.from('objectifs').select('*').eq('annee', annee),
-      supabase.from('clients').select('created_at, rdv_effectue_le').gte('created_at', `${annee - 1}-12-31`),
-      supabase.from('devis').select('montant, date_signature').eq('statut', 'signe').gte('date_signature', debut).lt('date_signature', fin),
-      supabase.from('paiements').select('montant, recu_le').eq('recu', true).gte('recu_le', debut).lt('recu_le', fin),
+      db.from('objectifs').select('*').eq('annee', annee),
+      db.from('clients').select('created_at, rdv_effectue_le').gte('created_at', `${annee - 1}-12-31`),
+      db.from('devis').select('montant, date_signature').eq('statut', 'signe').gte('date_signature', debut).lt('date_signature', fin),
+      db.from('paiements').select('montant, recu_le').eq('recu', true).gte('recu_le', debut).lt('recu_le', fin),
     ])
     return {
       objectifs: must(obj) as Objectif[],
@@ -82,7 +82,7 @@ export default function Objectifs() {
 
   const enregistrer = async () => {
     const lignes = INDICATEURS.map((i) => ({ annee, periode, numero, indicateur: i.id, cible: cibles[cle(i.id)] ?? 0 }))
-    const { error } = await supabase.from('objectifs').upsert(lignes, { onConflict: 'annee,periode,numero,indicateur' })
+    const { error } = await db.from('objectifs').upsert(lignes, { onConflict: 'annee,periode,numero,indicateur' })
     if (error) { setMsg(error.message); return }
     setEdition(false); setMsg('Objectifs enregistrés.'); reload()
   }
@@ -100,7 +100,7 @@ export default function Objectifs() {
       cible: lignes.filter((l) => l.indicateur === i.id && Math.ceil(l.numero / 3) === t).reduce((s, l) => s + l.cible, 0),
     })))
     if (!confirm('Remplacer les objectifs trimestriels et mensuels par une répartition de l’objectif annuel (pondérée par saison) ?')) return
-    const { error } = await supabase.from('objectifs').upsert([...lignes, ...trims], { onConflict: 'annee,periode,numero,indicateur' })
+    const { error } = await db.from('objectifs').upsert([...lignes, ...trims], { onConflict: 'annee,periode,numero,indicateur' })
     setMsg(error ? error.message : 'Objectif annuel réparti sur les trimestres et les mois.'); reload()
   }
 

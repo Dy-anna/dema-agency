@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { nomType } from '../lib/format'
 import ClientForm, { emptyClient, type ClientDraft } from '../components/ClientForm'
 
@@ -15,11 +15,11 @@ export default function ClientNew() {
     if (!draft.nom.trim()) { setError('Le nom est obligatoire.'); return }
     setBusy(true); setError('')
     const payload = { ...draft, date_evenement: draft.date_evenement || null }
-    const { data, error } = await supabase.from('clients').insert(payload).select('id').single()
+    const { data, error } = await db.from('clients').insert(payload).select('id').single()
     if (error) { setError(error.message); setBusy(false); return }
     // La date est posée en provisoire dans le calendrier dès l'enregistrement
     if (draft.date_evenement) {
-      await supabase.from('evenements').insert({
+      await db.from('evenements').insert({
         titre: draft.nom, date: draft.date_evenement, type_prestation: draft.type_prestation,
         statut: 'previsionnel', client_id: data.id,
       })

@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/db'
+import { useAuth } from '../lib/auth'
 
 export default function Login() {
+  const { needsSetup, refresh } = useAuth()
+  const [nom, setNom] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -10,9 +13,9 @@ export default function Login() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true); setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError('Identifiants incorrects.')
-    setBusy(false)
+    const { ok, payload } = needsSetup ? await api.setup(nom, email, password) : await api.login(email, password)
+    if (!ok) { setError(payload.error ?? 'Erreur'); setBusy(false); return }
+    await refresh()
   }
 
   return (
@@ -25,16 +28,23 @@ export default function Login() {
             <span className="small muted">Espace équipe</span>
           </div>
         </div>
-        <h1 style={{ fontSize: 24 }}>Connexion</h1>
+        <h1 style={{ fontSize: 24 }}>{needsSetup ? 'Créer le compte gérant' : 'Connexion'}</h1>
+        {needsSetup && <p className="small muted" style={{ margin: 0 }}>Première utilisation : ce compte aura tous les droits. Tu pourras ensuite ajouter ton associé et l’équipe.</p>}
+        {needsSetup && (
+          <label className="field">Nom
+            <input required autoComplete="name" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </label>
+        )}
         <label className="field">E-mail
           <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
-        <label className="field">Mot de passe
-          <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <label className="field">Mot de passe{needsSetup ? ' (8 caractères minimum)' : ''}
+          <input type="password" autoComplete={needsSetup ? 'new-password' : 'current-password'} required minLength={needsSetup ? 8 : undefined}
+            value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         {error && <span className="error" role="alert">{error}</span>}
-        <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
-        <span className="small muted">Accès réservé à l’équipe. Les comptes sont créés par un gérant.</span>
+        <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Un instant…' : needsSetup ? 'Créer le compte' : 'Se connecter'}</button>
+        {!needsSetup && <span className="small muted">Accès réservé à l’équipe. Les comptes sont créés par un gérant.</span>}
       </form>
     </div>
   )

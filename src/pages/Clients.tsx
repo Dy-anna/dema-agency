@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { dateFr, nomType } from '../lib/format'
 import type { Client, StatutCommercial } from '../lib/types'
@@ -16,7 +16,7 @@ export default function Clients() {
   const nav = useNavigate()
   const [filtre, setFiltre] = useState<StatutCommercial | 'tous'>('tous')
   const [q, setQ] = useState('')
-  const { data, error } = useLoad(async () => must(await supabase.from('clients').select('*').order('created_at', { ascending: false })) as Client[])
+  const { data, error } = useLoad(async () => must(await db.from('clients').select('*').order('created_at', { ascending: false })) as Client[])
 
   const liste = (data ?? []).filter((c) =>
     (filtre === 'tous' || c.statut_commercial === filtre) &&

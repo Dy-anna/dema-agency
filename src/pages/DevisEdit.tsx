@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { STATUTS_DEVIS, dateFr, euro, nomType } from '../lib/format'
 import { signerDevis } from '../lib/actions'
@@ -23,8 +23,8 @@ export default function DevisEdit() {
   const [busy, setBusy] = useState(false)
 
   const { data, error, reload } = useLoad(async () => {
-    const devis = must(await supabase.from('devis').select('*').eq('id', id!).single()) as Devis
-    const client = must(await supabase.from('clients').select('*').eq('id', devis.client_id).single()) as Client
+    const devis = must(await db.from('devis').select('*').eq('id', id!).single()) as Devis
+    const client = must(await db.from('clients').select('*').eq('id', devis.client_id).single()) as Client
     return { devis, client }
   }, [id])
 
@@ -44,7 +44,7 @@ export default function DevisEdit() {
     const patch: Record<string, unknown> = { lignes, montant: total }
     if (statut) patch.statut = statut
     if (statut === 'envoye' && !devis.date_envoi) patch.date_envoi = new Date().toISOString()
-    const { error } = await supabase.from('devis').update(patch).eq('id', devis.id)
+    const { error } = await db.from('devis').update(patch).eq('id', devis.id)
     setBusy(false)
     if (error) { setMsg(error.message); return }
     setMsg('Devis enregistré.'); reload()
@@ -54,7 +54,7 @@ export default function DevisEdit() {
     if (!confirm(`Confirmer la signature du devis ${devis.numero} (${euro(total)}) ?\nLe client passe en « Client », le projet est créé et la date est confirmée.`)) return
     setBusy(true)
     try {
-      await supabase.from('devis').update({ lignes, montant: total }).eq('id', devis.id)
+      await db.from('devis').update({ lignes, montant: total }).eq('id', devis.id)
       const projetId = await signerDevis({ ...devis, lignes, montant: total }, client)
       nav(`/projets/${projetId}`)
     } catch (e) {
