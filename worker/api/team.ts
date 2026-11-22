@@ -2,7 +2,7 @@ import { fail, getUser, hashPassword, json, type Env } from '../_lib/auth'
 
 const ROLES = ['gerant', 'chef_projet', 'assistant']
 
-export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
+export async function handleTeam(request: Request, env: Env): Promise<Response> {
   const user = await getUser(env, request)
   if (!user) return fail('Non connecté', 401)
 

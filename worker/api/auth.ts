@@ -1,9 +1,9 @@
-import { createSession, destroySession, fail, getUser, hashPassword, json, verifyPassword, type Env } from '../../_lib/auth'
+import { createSession, destroySession, fail, getUser, hashPassword, json, verifyPassword, type Env } from '../_lib/auth'
 
 const isSecure = (request: Request) => new URL(request.url).protocol === 'https:'
 
-export const onRequest: PagesFunction<Env> = async ({ request, env, params }) => {
-  const action = String(params.action)
+export async function handleAuth(request: Request, env: Env, action: string): Promise<Response> {
+
 
   if (action === 'me') {
     const user = await getUser(env, request)

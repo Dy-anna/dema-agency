@@ -4,9 +4,9 @@ Application web interne de DEMA Agency : clients & prospects, devis, projets & t
 
 ## Stack
 - React + TypeScript (Vite) — dossier `src/`
-- API Cloudflare Pages Functions — dossier `functions/` (auth par cookie, données)
+- API dans un Cloudflare Worker — dossier `worker/` (auth par cookie, données)
 - Base de données Cloudflare D1 `dema-agency` — schéma dans `migrations/`
-- Hébergement : Cloudflare Pages (la base D1 est reliée via `wrangler.toml`)
+- Hébergement : Cloudflare Workers + fichiers statiques (config dans `wrangler.toml`)
 
 ## Rôles
 - **Gérant** : accès complet (devis, finance, objectifs, gestion de l'équipe)
@@ -18,10 +18,8 @@ Le tout premier compte créé sur le site devient gérant. Les autres comptes so
 ```bash
 npm install
 npx wrangler d1 migrations apply dema-agency --local
-npm run build && npx wrangler pages dev dist
+npx wrangler dev
 ```
 
-## Déploiement Cloudflare Pages
-- Commande de build : `npm run build`
-- Dossier de sortie : `dist`
-- La liaison D1 (`DB`) est lue depuis `wrangler.toml`.
+## Déploiement
+Chaque push sur `main` déclenche `npx wrangler deploy` sur Cloudflare (le build du site est lancé automatiquement). La base D1 (`DB`) est reliée dans `wrangler.toml`.

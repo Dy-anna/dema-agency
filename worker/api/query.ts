@@ -171,7 +171,7 @@ async function run(env: Env, user: User, b: Body) {
   throw new Bad('Opération inconnue')
 }
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export async function handleQuery(request: Request, env: Env): Promise<Response> {
   const user = await getUser(env, request)
   if (!user) return fail('Non connecté', 401)
   try {
