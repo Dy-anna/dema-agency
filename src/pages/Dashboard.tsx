@@ -2,18 +2,21 @@ import { Link } from 'react-router-dom'
 import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
-import { DELAI_RELANCE_JOURS, dateFr, euro, isoDate, joursDepuis, nomType } from '../lib/format'
-import type { Client, Devis, Paiement, Projet, Tache } from '../lib/types'
+import { DELAI_RELANCE_JOURS, dateFr, euro, isoDate, joursDepuis } from '../lib/format'
+import ProjetsAVenir from '../components/ProjetsAVenir'
+import type { Client, Devis, Evenement, Paiement, Projet, Tache } from '../lib/types'
 
 export default function Dashboard() {
   const { profile, isGerant } = useAuth()
 
   const { data, error } = useLoad(async () => {
     const today = isoDate(new Date())
-    const [clients, projets, taches] = await Promise.all([
+    const dans12mois = isoDate(new Date(new Date().getFullYear() + 1, new Date().getMonth(), new Date().getDate()))
+    const [clients, projets, taches, evenements] = await Promise.all([
       db.from('clients').select('*').order('created_at', { ascending: false }),
       db.from('projets').select('*').neq('statut', 'livre').order('date_evenement'),
       db.from('taches').select('*').is('assigne_a', null).eq('fait', false).order('ordre').limit(8),
+      db.from('evenements').select('*').gte('date', today).lte('date', dans12mois).neq('statut', 'annule').order('date'),
     ])
     let devis: Devis[] = []
     let paiements: (Paiement & { projets: { titre: string } | null })[] = []
@@ -27,6 +30,7 @@ export default function Dashboard() {
       clients: must(clients) as Client[],
       projets: must(projets) as Projet[],
       taches: must(taches) as Tache[],
+      evenements: must(evenements) as Evenement[],
       allTaches: allTaches as Pick<Tache, 'projet_id' | 'fait'>[],
       devis, paiements,
     }
@@ -47,6 +51,10 @@ export default function Dashboard() {
   const acomptesRecus = acomptes.filter((p) => p.recu)
   const aVenir = data.paiements.filter((p) => !p.recu).slice(0, 5)
   const titreProjet = Object.fromEntries(data.projets.map((p) => [p.id, p.titre]))
+
+  const clientsAVenir = new Set(data.evenements.map((e) => e.client_id ?? e.id))
+  const nbProjets = clientsAVenir.size
+  const nbValides = [...clientsAVenir].filter((id) => data.evenements.some((e) => (e.client_id ?? e.id) === id && e.statut === 'confirme')).length
 
   const avancement = (projetId: string) => {
     const t = data.allTaches.filter((x) => x.projet_id === projetId)
@@ -81,9 +89,9 @@ export default function Dashboard() {
           </div>
         )}
         <div className="kpi">
-          <span className="kpi-label">Projets en cours</span>
-          <span className="kpi-value">{data.projets.length}</span>
-          <span className="kpi-sub">{data.projets.filter((p) => p.statut === 'production').length} en production</span>
+          <span className="kpi-label">Projets à venir</span>
+          <span className="kpi-value">{nbProjets}</span>
+          <span className="kpi-sub">{nbValides} validé{nbValides > 1 ? 's' : ''} · {nbProjets - nbValides} à confirmer</span>
         </div>
         {isGerant && (
           <>
@@ -108,6 +116,8 @@ export default function Dashboard() {
         )}
       </div>
 
+      <ProjetsAVenir evenements={data.evenements} clients={data.clients} projets={data.projets} avancement={avancement} />
+
       <div className="grid-cards">
         {isGerant && (
           <section className="card">
@@ -127,30 +137,6 @@ export default function Dashboard() {
             ))}
           </section>
         )}
-
-        <section className="card">
-          <div className="card-head">
-            <h2>Prochains projets</h2>
-            <Link to="/calendrier" style={{ fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Voir le calendrier</Link>
-          </div>
-          {data.projets.length === 0 && <p className="empty">Aucun projet en cours.</p>}
-          {data.projets.slice(0, 5).map((p) => {
-            const pct = avancement(p.id)
-            return (
-              <Link key={p.id} to={`/projets/${p.id}`} className="stack" style={{ padding: '12px 0', borderTop: '1px solid var(--line-soft)', textDecoration: 'none', color: 'inherit', gap: 8 }}>
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{p.titre}</span>
-                  <span className="small muted">{dateFr(p.date_evenement)}</span>
-                </div>
-                <div className="row" style={{ flexWrap: 'nowrap' }}>
-                  <div className="progress" style={{ flex: 1 }}><div className="fill" style={{ width: pct + '%' }} /></div>
-                  <span className="small muted" style={{ minWidth: 36, textAlign: 'right' }}>{pct} %</span>
-                </div>
-                <span className="small muted">{nomType(p.type_prestation)}</span>
-              </Link>
-            )
-          })}
-        </section>
 
         <section className="card">
           <div className="card-head">

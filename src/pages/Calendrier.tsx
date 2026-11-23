@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { TYPES_PRESTATION, dateFr, isoDate, nomStatutEvenement, nomType } from '../lib/format'
+import { enregistrerEvenement, ficheIncomplete, nomDepuisTitre, supprimerEvenement, type EvenementDraft } from '../lib/actions'
 import type { Client, Evenement, StatutEvenement, TypePrestation } from '../lib/types'
 
-type Draft = { id?: string; titre: string; date: string; type_prestation: TypePrestation; statut: StatutEvenement; client_id: string }
+type Draft = EvenementDraft
 type Vue = 'annee' | 'mois'
 
 const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -42,7 +43,7 @@ export default function Calendrier() {
     const [evenements, aVenir, clients] = await Promise.all([
       db.from('evenements').select('*').gte('date', debut).lte('date', fin).order('date'),
       db.from('evenements').select('*').gte('date', today).neq('statut', 'annule').order('date').limit(12),
-      db.from('clients').select('id, nom, type_prestation, date_evenement').neq('statut_commercial', 'perdu').order('nom'),
+      db.from('clients').select('id, nom, type_prestation, date_evenement, email, telephone, statut_commercial').order('nom'),
     ])
     return {
       evenements: must(evenements) as Evenement[],
@@ -57,8 +58,10 @@ export default function Calendrier() {
   for (const e of evts) parJour.set(e.date, [...(parJour.get(e.date) ?? []), e])
   const conflits = [...parJour.entries()].filter(([, l]) => l.filter((e) => e.statut !== 'annule').length > 1)
   const estConflit = (d: string) => conflits.some(([x]) => x === d)
-  const aCompleter = (data?.aVenir ?? []).filter((e) => !e.client_id)
-  const nomClient = (id: string | null) => data?.clients.find((c) => c.id === id)?.nom
+  const clientDe = (id: string | null) => data?.clients.find((c) => c.id === id)
+  const incomplet = (e: Evenement) => e.statut !== 'annule' && ficheIncomplete(clientDe(e.client_id))
+  const aCompleter = (data?.aVenir ?? []).filter(incomplet)
+  const fichesACompleter = [...new Set(aCompleter.map((e) => e.client_id).filter(Boolean))] as string[]
 
   const ouvrirNouveau = (date?: string) =>
     setDraft({ titre: '', date: date ?? today, type_prestation: 'mariage', statut: 'previsionnel', client_id: '' })
@@ -69,20 +72,16 @@ export default function Calendrier() {
   const enregistrer = async () => {
     if (!draft) return
     setErr('')
-    const client = data?.clients.find((c) => c.id === draft.client_id)
-    const payload = {
-      titre: draft.titre.trim() || client?.nom || `${nomType(draft.type_prestation)} · sans nom`,
-      date: draft.date, type_prestation: draft.type_prestation, statut: draft.statut, client_id: draft.client_id || null,
-    }
-    const res = draft.id
-      ? await db.from('evenements').update(payload).eq('id', draft.id)
-      : await db.from('evenements').insert(payload)
-    if (res.error) { setErr(res.error.message); return }
-    setDraft(null); reload()
+    const client = clientDe(draft.client_id)
+    if (!draft.titre.trim() && !client) { setErr('Donne un intitulé (ex. « Mariage Naomi & Lucas ») : il sert à créer la fiche prospect.'); return }
+    try {
+      await enregistrerEvenement({ ...draft, titre: draft.titre.trim() || client?.nom || '' })
+      setDraft(null); reload()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur') }
   }
   const supprimer = async () => {
-    if (!draft?.id || !confirm('Supprimer cet événement du calendrier ?')) return
-    await db.from('evenements').delete().eq('id', draft.id)
+    if (!draft?.id || !confirm('Supprimer cette date du calendrier ?')) return
+    await supprimerEvenement({ id: draft.id, client_id: draft.client_id || null })
     setDraft(null); reload()
   }
 
@@ -178,7 +177,7 @@ export default function Calendrier() {
         <span><i className="sw" style={{ background: 'var(--orange)' }} />Prévisionnel</span>
         <span><i className="sw" style={{ background: '#f5f5f4', border: '1px solid #a8a29e' }} />Annulé</span>
         <span><i className="sw" style={{ border: '2px solid var(--red)' }} />Double réservation</span>
-        <span><i className="dot" />Fiche prospect à compléter</span>
+        <span><i className="dot" />Coordonnées client à compléter</span>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -213,7 +212,7 @@ export default function Calendrier() {
                         {liste.map((e) => (
                           <button key={e.id} type="button" className={'evt ' + e.statut} title={`${e.titre} · ${nomStatutEvenement[e.statut]}`} onClick={() => ouvrir(e)}>
                             <span>{e.titre}</span>
-                            {!e.client_id && e.statut !== 'annule' && <i className="dot" aria-label="Fiche prospect à compléter" />}
+                            {incomplet(e) && <i className="dot" aria-label="Fiche prospect à compléter" />}
                           </button>
                         ))}
                       </div>
@@ -247,11 +246,11 @@ export default function Calendrier() {
                 <div className="stack" style={{ gap: 2, minWidth: 0, flex: 1 }}>
                   <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.titre}</span>
-                    {!e.client_id && <i className="dot" aria-label="Fiche prospect à compléter" />}
+                    {incomplet(e) && <i className="dot" aria-label="Fiche prospect à compléter" />}
                   </span>
                   <span className="small muted">{dans(e.date, today)} · {nomType(e.type_prestation)}</span>
                   <span className="small" style={{ color: e.statut === 'confirme' ? 'var(--green-ink)' : '#9a3412', fontWeight: 600 }}>
-                    {nomStatutEvenement[e.statut]}{e.client_id && nomClient(e.client_id) ? ` · ${nomClient(e.client_id)}` : ''}
+                    {nomStatutEvenement[e.statut]}{clientDe(e.client_id) && clientDe(e.client_id)!.nom !== e.titre ? ` · ${clientDe(e.client_id)!.nom}` : ''}
                   </span>
                 </div>
               </button>
@@ -259,8 +258,8 @@ export default function Calendrier() {
           })}
           {aCompleter.length > 0 && (
             <div className="banner outline" style={{ marginTop: 10, fontSize: 13, padding: '10px 12px' }}>
-              <span className="row" style={{ gap: 8 }}><i className="dot" />{aCompleter.length} sans fiche prospect</span>
-              <Link to="/clients/nouveau" style={{ fontWeight: 600, textDecoration: 'none' }}>Créer une fiche</Link>
+              <span className="row" style={{ gap: 8 }}><i className="dot" />{fichesACompleter.length} fiche{fichesACompleter.length > 1 ? 's' : ''} sans coordonnées</span>
+              <Link to={`/clients/${fichesACompleter[0]}`} style={{ fontWeight: 600, textDecoration: 'none' }}>Compléter</Link>
             </div>
           )}
         </aside>
@@ -287,8 +286,8 @@ export default function Calendrier() {
               </label>
               <label className="field">Prospect / client lié
                 <select value={draft.client_id} onChange={(e) => setDraft({ ...draft, client_id: e.target.value })}>
-                  <option value="">Aucun pour l’instant</option>
-                  {data?.clients.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  <option value="">+ Nouvelle fiche (créée automatiquement)</option>
+                  {data?.clients.filter((c) => c.statut_commercial !== 'perdu' || c.id === draft.client_id).map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </label>
             </div>
@@ -305,10 +304,14 @@ export default function Calendrier() {
                 ))}
               </div>
             </div>
-            {!draft.client_id && (
-              <div className="banner red" style={{ fontSize: 13 }}>
-                <span><strong>Aucun prospect lié.</strong> L’événement affichera un rappel « Fiche prospect à compléter ».</span>
-                <Link to="/clients/nouveau" style={{ fontWeight: 600, color: 'var(--red-ink)' }}>Créer la fiche</Link>
+            {!draft.client_id ? (
+              <div className="banner amber" style={{ fontSize: 13 }}>
+                <span>Une fiche prospect <strong>« {nomDepuisTitre(draft.titre) || '…'} »</strong> sera créée et reliée à cette date. Pense à compléter ses coordonnées.</span>
+              </div>
+            ) : (
+              <div className="banner outline" style={{ fontSize: 13, borderColor: 'var(--line)' }}>
+                <span>Reliée à la fiche <strong>{clientDe(draft.client_id)?.nom}</strong>{ficheIncomplete(clientDe(draft.client_id)) ? ' · coordonnées à compléter' : ''}. Statut confirmé = client + projet créé.</span>
+                <Link to={`/clients/${draft.client_id}`} style={{ fontWeight: 600, textDecoration: 'none' }}>Ouvrir la fiche</Link>
               </div>
             )}
             {err && <span className="error">{err}</span>}

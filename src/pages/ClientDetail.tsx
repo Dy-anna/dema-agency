@@ -3,9 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
-import { STATUTS_DEVIS, dateFr, euro, isoDate, nomStatutProjet, nomType } from '../lib/format'
+import { STATUTS_DEVIS, dateFr, euro, isoDate, nomStatutEvenement, nomStatutProjet, nomType } from '../lib/format'
 import ClientForm, { type ClientDraft } from '../components/ClientForm'
-import type { Client, Devis, Projet } from '../lib/types'
+import { ficheIncomplete, repercuterFiche, synchroniserClient } from '../lib/actions'
+import type { Client, Devis, Evenement, Projet } from '../lib/types'
 
 export default function ClientDetail() {
   const { id } = useParams()
@@ -19,7 +20,8 @@ export default function ClientDetail() {
     const client = must(await db.from('clients').select('*').eq('id', id!).single()) as Client
     const projets = must(await db.from('projets').select('*').eq('client_id', id!)) as Projet[]
     const devis = isGerant ? (must(await db.from('devis').select('*').eq('client_id', id!).order('created_at', { ascending: false })) as Devis[]) : []
-    return { client, projets, devis }
+    const evenements = must(await db.from('evenements').select('*').eq('client_id', id!).order('date')) as Evenement[]
+    return { client, projets, devis, evenements }
   }, [id, isGerant])
 
   useEffect(() => { if (data) setDraft(data.client) }, [data])
@@ -31,18 +33,18 @@ export default function ClientDetail() {
   const save = async () => {
     const { error } = await db.from('clients').update({ ...draft, date_evenement: draft.date_evenement || null }).eq('id', c.id)
     if (error) { setMsg(error.message); return }
-    // Garder la date du calendrier alignée
-    if (draft.date_evenement && draft.date_evenement !== c.date_evenement) {
-      await db.from('evenements').update({ date: draft.date_evenement, titre: draft.nom }).eq('client_id', c.id)
-    }
+    // Calendrier et projet suivent la fiche
+    await repercuterFiche({ id: c.id, nom: draft.nom, type_prestation: draft.type_prestation, date_evenement: draft.date_evenement || null }, c.nom)
     setEdit(false); setMsg('Enregistré.'); reload()
   }
   const update = async (patch: Partial<Client>) => {
     await db.from('clients').update(patch).eq('id', c.id); reload()
   }
   const marquerPerdu = async () => {
-    await update({ statut_commercial: 'perdu' })
     await db.from('evenements').update({ statut: 'annule' }).eq('client_id', c.id).neq('statut', 'confirme')
+    await db.from('clients').update({ statut_commercial: 'perdu' }).eq('id', c.id)
+    await synchroniserClient(c.id)
+    reload()
   }
   const nouveauDevis = async () => {
     const numero = `D-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`
@@ -69,6 +71,10 @@ export default function ClientDetail() {
         </div>
       </div>
       {msg && <span className="small muted" role="status">{msg}</span>}
+      {ficheIncomplete(c) && !edit && (
+        <div className="banner outline"><span className="row" style={{ gap: 8 }}><i className="dot" /><strong>Coordonnées à compléter</strong> · ajoute au moins un téléphone ou un e-mail.</span>
+          <button className="btn small" type="button" onClick={() => setEdit(true)}>Compléter</button></div>
+      )}
 
       {edit ? (
         <>
@@ -90,6 +96,23 @@ export default function ClientDetail() {
           </section>
 
           <section className="card">
+            <div className="card-head">
+              <h2>Dates au calendrier</h2>
+              <Link to="/calendrier" style={{ fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Gérer</Link>
+            </div>
+            {data.evenements.length === 0 && <p className="empty">Aucune date. Ajoute une date de l’événement pour la voir au calendrier.</p>}
+            {data.evenements.map((e) => (
+              <div key={e.id} className="list-row">
+                <div className="stack" style={{ gap: 3 }}>
+                  <span className="title">{e.titre}</span>
+                  <span className="sub">{dateFr(e.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </div>
+                <span className={'badge ' + (e.statut === 'confirme' ? 'green' : e.statut === 'annule' ? 'grey' : 'orange')}>{nomStatutEvenement[e.statut]}</span>
+              </div>
+            ))}
+          </section>
+
+          <section className="card">
             <h2>Suivi commercial</h2>
             <div className="list-row">
               <span>Rendez-vous effectué</span>
@@ -106,7 +129,10 @@ export default function ClientDetail() {
             {c.statut_commercial === 'perdu' && (
               <div className="list-row">
                 <span>Relancer ce prospect</span>
-                <button className="btn small" type="button" onClick={() => update({ statut_commercial: 'prospect' })}>Réactiver</button>
+                <button className="btn small" type="button" onClick={async () => {
+                  await db.from('evenements').update({ statut: 'previsionnel' }).eq('client_id', c.id).eq('statut', 'annule')
+                  await update({ statut_commercial: 'prospect' })
+                }}>Réactiver</button>
               </div>
             )}
           </section>
