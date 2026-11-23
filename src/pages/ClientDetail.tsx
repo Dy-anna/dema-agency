@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { STATUTS_DEVIS, dateFr, euro, isoDate, nomStatutEvenement, nomStatutProjet, nomType } from '../lib/format'
 import ClientForm, { type ClientDraft } from '../components/ClientForm'
+import FicheEvenement from '../components/FicheEvenement'
 import { ficheIncomplete, repercuterFiche, synchroniserClient } from '../lib/actions'
 import type { Client, Devis, Evenement, Projet } from '../lib/types'
 
@@ -86,6 +87,8 @@ export default function ClientDetail() {
         </>
       ) : (
         <div className="grid-cards">
+          <FicheEvenement key={c.id} client={c} onSaved={reload} />
+
           <section className="card">
             <h2>Coordonnées</h2>
             <div className="list-row"><span className="muted">Contact</span><span>{c.contact || '—'}</span></div>

@@ -29,10 +29,13 @@ export default function Layout() {
           <span className="nav-label">PRODUCTION</span>
           <NavLink to="/projets" className={lien}>Projets &amp; tâches</NavLink>
           <NavLink to="/calendrier" className={lien}>Calendrier</NavLink>
+          <NavLink to="/planning" className={lien}>Planning équipe</NavLink>
         </div>
         <div className="nav-group">
           <span className="nav-label">PILOTAGE</span>
+          {isGerant && <NavLink to="/factures" className={lien}>Factures</NavLink>}
           {isGerant && <NavLink to="/objectifs" className={lien}>Objectifs</NavLink>}
+          {isGerant && <NavLink to="/parametres" className={lien}>Paramètres agence</NavLink>}
           <NavLink to="/equipe" className={lien}>Équipe &amp; compte</NavLink>
         </div>
         <div className="user-box">

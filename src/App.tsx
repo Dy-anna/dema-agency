@@ -13,6 +13,11 @@ import ProjetDetail from './pages/ProjetDetail'
 import Calendrier from './pages/Calendrier'
 import Objectifs from './pages/Objectifs'
 import Equipe from './pages/Equipe'
+import Parametres from './pages/Parametres'
+import Factures from './pages/Factures'
+import { DevisPDF, FacturePDF } from './pages/Documents'
+import Planning from './pages/Planning'
+import FeuilleDeRoute from './pages/FeuilleDeRoute'
 import type { ReactNode } from 'react'
 
 function GerantOnly({ children }: { children: ReactNode }) {
@@ -28,6 +33,9 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="devis/:id/pdf" element={<GerantOnly><DevisPDF /></GerantOnly>} />
+      <Route path="factures/:id/pdf" element={<GerantOnly><FacturePDF /></GerantOnly>} />
+      <Route path="clients/:id/feuille-de-route" element={<FeuilleDeRoute />} />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
@@ -40,6 +48,9 @@ export default function App() {
         <Route path="calendrier" element={<Calendrier />} />
         <Route path="objectifs" element={<GerantOnly><Objectifs /></GerantOnly>} />
         <Route path="equipe" element={<Equipe />} />
+        <Route path="parametres" element={<GerantOnly><Parametres /></GerantOnly>} />
+        <Route path="factures" element={<GerantOnly><Factures /></GerantOnly>} />
+        <Route path="planning" element={<Planning />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

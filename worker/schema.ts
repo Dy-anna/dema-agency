@@ -1,4 +1,4 @@
-// Généré depuis migrations/0001_init.sql : crée les tables au premier lancement si elles n'existent pas
+// Généré depuis migrations/*.sql : crée/complète les tables au premier lancement
 import type { Env } from './_lib/auth'
 
 const SCHEMA = [
@@ -17,13 +17,30 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_paiements_projet ON paiements(projet_id)`,
   `CREATE INDEX IF NOT EXISTS idx_evenements_date ON evenements(date)`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+  `CREATE TABLE IF NOT EXISTS parametres ( id TEXT PRIMARY KEY, valeur TEXT NOT NULL DEFAULT '{}' )`,
+  `CREATE TABLE IF NOT EXISTS factures ( id TEXT PRIMARY KEY, numero TEXT NOT NULL UNIQUE, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE, projet_id TEXT REFERENCES projets(id) ON DELETE SET NULL, devis_id TEXT REFERENCES devis(id) ON DELETE SET NULL, paiement_id TEXT REFERENCES paiements(id) ON DELETE SET NULL, type TEXT NOT NULL DEFAULT 'totale' CHECK (type IN ('acompte','solde','totale')), lignes TEXT NOT NULL DEFAULT '[]', montant_ht REAL NOT NULL DEFAULT 0, tva_taux REAL NOT NULL DEFAULT 0, montant_ttc REAL NOT NULL DEFAULT 0, date_emission TEXT NOT NULL, echeance TEXT, statut TEXT NOT NULL DEFAULT 'emise' CHECK (statut IN ('emise','payee','annulee')), created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')) )`,
+  `CREATE INDEX IF NOT EXISTS idx_factures_client ON factures(client_id)`,
+  `CREATE TABLE IF NOT EXISTS affectations ( id TEXT PRIMARY KEY, evenement_id TEXT NOT NULL REFERENCES evenements(id) ON DELETE CASCADE, profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE, nom_libre TEXT, poste TEXT NOT NULL DEFAULT 'cadreur', horaires TEXT, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')) )`,
+  `CREATE INDEX IF NOT EXISTS idx_affectations_evt ON affectations(evenement_id)`,
+]
+
+// Colonnes ajoutées après coup : ignorées si elles existent déjà
+const ALTERS = [
+  `ALTER TABLE clients ADD COLUMN details TEXT NOT NULL DEFAULT '{}'`,
 ]
 
 let ready: Promise<void> | null = null
 
-export function ensureSchema(env: Env) {
-  if (!ready) {
-    ready = env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s))).then(() => undefined).catch((e) => { ready = null; throw e })
+async function migrate(env: Env) {
+  await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)))
+  for (const s of ALTERS) {
+    try { await env.DB.prepare(s).run() } catch (e) {
+      if (!String(e).includes('duplicate column')) throw e
+    }
   }
+}
+
+export function ensureSchema(env: Env) {
+  if (!ready) ready = migrate(env).catch((e) => { ready = null; throw e })
   return ready
 }

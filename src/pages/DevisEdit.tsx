@@ -4,6 +4,7 @@ import { db } from '../lib/db'
 import { useLoad, must } from '../lib/useLoad'
 import { STATUTS_DEVIS, dateFr, euro, nomType } from '../lib/format'
 import { signerDevis } from '../lib/actions'
+import { chargerParametres } from '../lib/facturation'
 import type { Client, Devis, LigneDevis, StatutDevis, TypePrestation } from '../lib/types'
 
 // Suggestions de lignes selon le type de prestation (modifiables)
@@ -55,7 +56,8 @@ export default function DevisEdit() {
     setBusy(true)
     try {
       await db.from('devis').update({ lignes, montant: total }).eq('id', devis.id)
-      const projetId = await signerDevis({ ...devis, lignes, montant: total }, client)
+      const params = await chargerParametres()
+      const projetId = await signerDevis({ ...devis, lignes, montant: total }, client, params.acompte_pct ?? 30)
       nav(`/projets/${projetId}`)
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
@@ -71,7 +73,10 @@ export default function DevisEdit() {
             <h1>Devis {devis.numero}</h1>
             <span className="muted" style={{ fontSize: 14 }}>{client.nom} · {nomType(client.type_prestation)} · {dateFr(client.date_evenement)}</span>
           </div>
-          <span className="badge indigo" style={{ fontSize: 13, padding: '6px 12px' }}>{STATUTS_DEVIS.find((s) => s.id === devis.statut)?.nom}</span>
+          <div className="row">
+            <span className="badge indigo" style={{ fontSize: 13, padding: '6px 12px' }}>{STATUTS_DEVIS.find((s) => s.id === devis.statut)?.nom}</span>
+            <Link className="btn" to={`/devis/${devis.id}/pdf`} onClick={async (e) => { if (!verrouille) { e.preventDefault(); await db.from('devis').update({ lignes, montant: total }).eq('id', devis.id); nav(`/devis/${devis.id}/pdf`) } }}>Télécharger le PDF</Link>
+          </div>
         </div>
       </div>
 
@@ -123,7 +128,7 @@ export default function DevisEdit() {
       ) : (
         <div className="banner amber"><span>Devis signé le {dateFr(devis.date_signature)} — il n’est plus modifiable.</span></div>
       )}
-      <p className="small muted" style={{ margin: 0 }}>L’envoi automatique du devis par e-mail sera ajouté avec la phase automatisations.</p>
+      <p className="small muted" style={{ margin: 0 }}>Télécharge le PDF et envoie-le au client. L’envoi automatique par e-mail viendra avec la phase automatisations.</p>
     </>
   )
 }

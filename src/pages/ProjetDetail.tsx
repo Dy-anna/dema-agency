@@ -5,7 +5,8 @@ import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { dateFr, euro, isoDate, nomRole, nomStatutProjet, nomType } from '../lib/format'
 import { lancerProduction } from '../lib/actions'
-import type { Client, Paiement, Profile, Projet, Tache } from '../lib/types'
+import { chargerParametres, facturerPaiement, synchroniserFactureDuPaiement } from '../lib/facturation'
+import type { Client, Facture, Paiement, Profile, Projet, Tache } from '../lib/types'
 
 export default function ProjetDetail() {
   const { id } = useParams()
@@ -19,12 +20,20 @@ export default function ProjetDetail() {
     const taches = must(await db.from('taches').select('*').eq('projet_id', id!).order('ordre')) as Tache[]
     const equipe = must(await db.from('profiles').select('id, nom, role').order('nom')) as Profile[]
     const paiements = isGerant ? (must(await db.from('paiements').select('*').eq('projet_id', id!).order('echeance', { nullsFirst: false })) as Paiement[]) : []
-    return { projet, client, taches, equipe, paiements }
+    const factures = isGerant ? (must(await db.from('factures').select('id, numero, paiement_id, statut').eq('projet_id', id!)) as Facture[]) : []
+    return { projet, client, taches, equipe, paiements, factures }
   }, [id, isGerant])
 
   if (error) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Chargement…</p>
-  const { projet, client, taches, equipe, paiements } = data
+  const { projet, client, taches, equipe, paiements, factures } = data
+  const factureDe = (p: Paiement) => factures.find((f) => f.paiement_id === p.id && f.statut !== 'annulee')
+  const facturer = async (p: Paiement) => {
+    try {
+      const fid = await facturerPaiement(p, projet, await chargerParametres())
+      window.location.href = `/factures/${fid}/pdf`
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erreur') }
+  }
 
   const groupes = Array.from(new Set(taches.map((t) => t.groupe)))
   const faites = taches.filter((t) => t.fait).length
@@ -45,6 +54,7 @@ export default function ProjetDetail() {
   const majPaiement = async (p: Paiement, patch: Partial<Paiement>) => {
     const { error } = await db.from('paiements').update(patch).eq('id', p.id)
     if (error) { setMsg(error.message); return }
+    if (patch.recu !== undefined) await synchroniserFactureDuPaiement(p.id, patch.recu)
     // Acompte reçu → projet en production + tâches générées
     if (patch.recu && p.type === 'acompte' && projet.statut === 'en_attente') {
       await lancerProduction(projet)
@@ -163,6 +173,9 @@ export default function ProjetDetail() {
                       onChange={() => majPaiement(p, { recu: !p.recu, recu_le: !p.recu ? isoDate(new Date()) : null })} />
                     {p.recu ? `${p.type === 'acompte' ? 'Acompte reçu' : 'Reçu'}${p.recu_le ? ' le ' + dateFr(p.recu_le, { day: 'numeric', month: 'short' }) : ''}` : 'En attente'}
                   </label>
+                  {factureDe(p)
+                    ? <Link className="btn small" style={{ alignSelf: 'flex-start' }} to={`/factures/${factureDe(p)!.id}/pdf`}>Facture {factureDe(p)!.numero}</Link>
+                    : <button className="btn small dashed" style={{ alignSelf: 'flex-start' }} type="button" disabled={Number(p.montant) <= 0} onClick={() => facturer(p)}>Facturer</button>}
                 </div>
               ))}
               <button className="btn small dashed" type="button" onClick={ajouterPaiement}>+ Ajouter une échéance</button>

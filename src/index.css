@@ -206,3 +206,31 @@ tr.clickable:hover td { background: #faf9f7; }
 
 .modal-back { position: fixed; inset: 0; background: rgba(23,23,28,.45); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; overflow-y: auto; z-index: 20; }
 .modal { width: 100%; max-width: 640px; }
+
+/* Documents A4 (devis, factures, feuille de route) */
+.doc-wrap { min-height: 100vh; background: #e9e7e3; padding: 24px 16px 48px; }
+.doc-toolbar { max-width: 210mm; margin: 0 auto 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.doc { background: #fff; max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 18mm 16mm; box-shadow: 0 2px 12px rgba(0,0,0,.08); font-size: 12.5px; line-height: 1.5; color: #17171c; }
+.doc-head { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.doc-logo { width: 34px; height: 34px; border-radius: 8px; background: #17171c; color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; margin-bottom: 8px; }
+.doc-title { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: .04em; }
+.doc-paye { display: inline-block; margin-top: 6px; border: 2px solid #15803d; color: #15803d; font-weight: 700; padding: 2px 10px; border-radius: 6px; }
+.doc-client { margin: 0 0 20px auto; width: 50%; padding: 12px 14px; border: 1px solid #e6e3de; border-radius: 8px; }
+.doc-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.doc-table th { background: #f6f5f2; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #44403c; padding: 8px 10px; border-bottom: 1px solid #d9d5ce; }
+.doc-table td { padding: 9px 10px; border-bottom: 1px solid #f0ede8; vertical-align: top; }
+.doc-totaux { margin-left: auto; width: 45%; display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+.doc-totaux > div { display: flex; justify-content: space-between; }
+.doc-total { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; border-top: 2px solid #17171c; padding-top: 6px; }
+.doc-signature { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
+.doc-sign-box { height: 90px; width: 55%; border: 1px dashed #a8a29e; border-radius: 8px; }
+.doc h3 { font-size: 14px; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e6e3de; }
+@media print {
+  @page { size: A4; margin: 0; }
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .doc-wrap { padding: 0; background: #fff; }
+  .doc { box-shadow: none; max-width: none; min-height: auto; }
+}
+@media (max-width: 900px) { .fiche-row { grid-template-columns: 1fr 1fr !important; } }
+@media (max-width: 560px) { .fiche-row { grid-template-columns: 1fr !important; } }

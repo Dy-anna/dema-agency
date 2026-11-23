@@ -103,7 +103,7 @@ export async function repercuterFiche(c: Pick<Client, 'id' | 'nom' | 'type_prest
 }
 
 /** Devis signé → client, projet (réutilisé s'il existe), dates confirmées, acompte prévu */
-export async function signerDevis(devis: Devis, client: Pick<Client, 'id' | 'nom' | 'type_prestation' | 'date_evenement'>) {
+export async function signerDevis(devis: Devis, client: Pick<Client, 'id' | 'nom' | 'type_prestation' | 'date_evenement'>, acomptePct = 30) {
   const now = new Date().toISOString()
   const { error: e1 } = await db.from('devis').update({ statut: 'signe', date_signature: now }).eq('id', devis.id)
   if (e1) throw e1
@@ -124,7 +124,7 @@ export async function signerDevis(devis: Devis, client: Pick<Client, 'id' | 'nom
 
   const { count } = await db.from('paiements').select('id', { count: 'exact', head: true }).eq('projet_id', projet.id)
   if (!count) {
-    const acompte = Math.round(Number(devis.montant) * 0.3)
+    const acompte = Math.round(Number(devis.montant) * (acomptePct / 100))
     await db.from('paiements').insert([
       { projet_id: projet.id, libelle: 'Acompte', type: 'acompte', montant: acompte, echeance: now.slice(0, 10) },
       { projet_id: projet.id, libelle: 'Solde', type: 'solde', montant: Number(devis.montant) - acompte, echeance: client.date_evenement },

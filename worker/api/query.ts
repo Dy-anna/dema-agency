@@ -7,18 +7,23 @@ interface TableDef { cols: Record<string, ColType>; gerantOnly?: boolean; readOn
 
 const T: Record<string, TableDef> = {
   profiles: { readOnly: true, cols: { id: 'text', nom: 'text', role: 'text' } },
-  clients: { cols: { id: 'text', type_prestation: 'text', nom: 'text', contact: 'text', telephone: 'text', email: 'text', adresse: 'text', date_evenement: 'text', statut_commercial: 'text', rdv_effectue_le: 'text', notes: 'text', created_by: 'text', created_at: 'text' } },
+  clients: { cols: { id: 'text', type_prestation: 'text', nom: 'text', contact: 'text', telephone: 'text', email: 'text', adresse: 'text', date_evenement: 'text', statut_commercial: 'text', rdv_effectue_le: 'text', notes: 'text', details: 'json', created_by: 'text', created_at: 'text' } },
   devis: { gerantOnly: true, cols: { id: 'text', client_id: 'text', numero: 'text', statut: 'text', lignes: 'json', montant: 'num', date_envoi: 'text', date_signature: 'text', created_at: 'text' } },
   projets: { cols: { id: 'text', client_id: 'text', devis_id: 'text', titre: 'text', type_prestation: 'text', date_evenement: 'text', statut: 'text', created_at: 'text' } },
   taches: { cols: { id: 'text', projet_id: 'text', groupe: 'text', titre: 'text', fait: 'bool', assigne_a: 'text', ordre: 'num', created_at: 'text' } },
   paiements: { gerantOnly: true, cols: { id: 'text', projet_id: 'text', libelle: 'text', type: 'text', montant: 'num', echeance: 'text', recu: 'bool', recu_le: 'text', created_at: 'text' } },
   evenements: { cols: { id: 'text', titre: 'text', date: 'text', type_prestation: 'text', statut: 'text', client_id: 'text', projet_id: 'text', created_at: 'text' } },
+  parametres: { gerantOnly: true, cols: { id: 'text', valeur: 'json' } },
+  factures: { gerantOnly: true, cols: { id: 'text', numero: 'text', client_id: 'text', projet_id: 'text', devis_id: 'text', paiement_id: 'text', type: 'text', lignes: 'json', montant_ht: 'num', tva_taux: 'num', montant_ttc: 'num', date_emission: 'text', echeance: 'text', statut: 'text', created_at: 'text' } },
+  affectations: { cols: { id: 'text', evenement_id: 'text', profile_id: 'text', nom_libre: 'text', poste: 'text', horaires: 'text', created_at: 'text' } },
   objectifs: { gerantOnly: true, cols: { id: 'text', annee: 'num', periode: 'text', numero: 'num', indicateur: 'text', cible: 'num' } },
 }
 // Jointures autorisées : table embarquée -> colonne de clé étrangère
 const EMBEDS: Record<string, Record<string, string>> = {
   devis: { clients: 'client_id' },
   paiements: { projets: 'projet_id' },
+  factures: { clients: 'client_id' },
+  affectations: { evenements: 'evenement_id', profiles: 'profile_id' },
 }
 const OPS: Record<string, string> = { eq: '=', neq: '!=', gt: '>', gte: '>=', lt: '<', lte: '<=' }
 

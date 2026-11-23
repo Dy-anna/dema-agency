@@ -19,6 +19,7 @@ export interface Client {
   statut_commercial: StatutCommercial
   rdv_effectue_le: string | null
   notes: string | null
+  details?: DetailsEvenement
   created_at: string
 }
 
@@ -88,4 +89,61 @@ export interface Objectif {
   numero: number
   indicateur: Indicateur
   cible: number
+}
+
+// ───── Fiche événement détaillée (stockée dans clients.details) ─────
+export interface Lieu { nom: string; type: string; adresse: string; heure: string }
+export interface EtapeDeroule { heure: string; moment: string; notes: string }
+export interface ContactUtile { role: string; nom: string; telephone: string; email: string }
+export interface DetailsEvenement {
+  lieux?: Lieu[]
+  deroule?: EtapeDeroule[]
+  contacts?: ContactUtile[]
+  questionnaire?: Record<string, string>
+}
+
+// ───── Paramètres de l'agence ─────
+export interface ParametresAgence {
+  raison_sociale?: string
+  forme?: string
+  adresse?: string
+  siret?: string
+  tva_intra?: string
+  email?: string
+  telephone?: string
+  iban?: string
+  bic?: string
+  tva_taux?: number          // 0 = TVA non applicable
+  mention_tva?: string       // ex. « TVA non applicable, art. 293 B du CGI »
+  validite_devis_jours?: number
+  conditions?: string        // conditions de paiement / annulation
+  acompte_pct?: number
+}
+
+export interface Facture {
+  id: string
+  numero: string
+  client_id: string
+  projet_id: string | null
+  devis_id: string | null
+  paiement_id: string | null
+  type: 'acompte' | 'solde' | 'totale'
+  lignes: LigneDevis[]
+  montant_ht: number
+  tva_taux: number
+  montant_ttc: number
+  date_emission: string
+  echeance: string | null
+  statut: 'emise' | 'payee' | 'annulee'
+  created_at: string
+  clients?: Pick<Client, 'nom'> | null
+}
+
+export interface Affectation {
+  id: string
+  evenement_id: string
+  profile_id: string | null
+  nom_libre: string | null
+  poste: string
+  horaires: string | null
 }
