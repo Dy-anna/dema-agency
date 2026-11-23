@@ -6,6 +6,7 @@ import { useLoad, must } from '../lib/useLoad'
 import { dateFr, euro, isoDate, nomRole, nomStatutProjet, nomType } from '../lib/format'
 import { lancerProduction } from '../lib/actions'
 import { chargerParametres, facturerPaiement, synchroniserFactureDuPaiement } from '../lib/facturation'
+import { repartition } from '../lib/fiscalite'
 import type { Client, Facture, Paiement, Profile, Projet, Tache } from '../lib/types'
 
 export default function ProjetDetail() {
@@ -21,12 +22,13 @@ export default function ProjetDetail() {
     const equipe = must(await db.from('profiles').select('id, nom, role').order('nom')) as Profile[]
     const paiements = isGerant ? (must(await db.from('paiements').select('*').eq('projet_id', id!).order('echeance', { nullsFirst: false })) as Paiement[]) : []
     const factures = isGerant ? (must(await db.from('factures').select('id, numero, paiement_id, statut').eq('projet_id', id!)) as Facture[]) : []
-    return { projet, client, taches, equipe, paiements, factures }
+    const params = isGerant ? await chargerParametres() : null
+    return { projet, client, taches, equipe, paiements, factures, params }
   }, [id, isGerant])
 
   if (error) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Chargement…</p>
-  const { projet, client, taches, equipe, paiements, factures } = data
+  const { projet, client, taches, equipe, paiements, factures, params } = data
   const factureDe = (p: Paiement) => factures.find((f) => f.paiement_id === p.id && f.statut !== 'annulee')
   const facturer = async (p: Paiement) => {
     try {
@@ -180,6 +182,11 @@ export default function ProjetDetail() {
               ))}
               <button className="btn small dashed" type="button" onClick={ajouterPaiement}>+ Ajouter une échéance</button>
               <span className="small muted">Échéancier propre à ce projet. Cocher l’acompte lance la production.</span>
+              {params && total > 0 && (() => { const r = repartition(total, params); return (
+                <div className="stack" style={{ gap: 4, paddingTop: 10, borderTop: '1px solid var(--line-soft)', fontSize: 13 }}>
+                  <div className="row" style={{ justifyContent: 'space-between' }}><span>URSSAF sur le contrat ({String(r.taux).replace('.', ',')} %)</span><span style={{ color: 'var(--orange)', fontWeight: 600 }}>− {euro(r.urssaf)}</span></div>
+                  <div className="row" style={{ justifyContent: 'space-between' }}><span><strong>Net pour l’agence</strong></span><strong>{euro(r.net)}</strong></div>
+                </div>) })()}
             </section>
           )}
 

@@ -118,6 +118,14 @@ export interface ParametresAgence {
   validite_devis_jours?: number
   conditions?: string        // conditions de paiement / annulation
   acompte_pct?: number
+  // Fiscalité (URSSAF)
+  regime_social?: string     // clé de REGIMES
+  taux_urssaf?: number       // % du CA encaissé
+  acre?: boolean             // taux réduit de moitié
+  cfp_taux?: number          // contribution formation professionnelle
+  versement_liberatoire?: boolean
+  taux_vl?: number
+  declaration?: 'mensuelle' | 'trimestrielle'
 }
 
 export interface Facture {

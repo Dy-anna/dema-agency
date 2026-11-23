@@ -5,6 +5,7 @@ import { useLoad, must } from '../lib/useLoad'
 import { STATUTS_DEVIS, dateFr, euro, nomType } from '../lib/format'
 import { signerDevis } from '../lib/actions'
 import { chargerParametres } from '../lib/facturation'
+import { repartition } from '../lib/fiscalite'
 import type { Client, Devis, LigneDevis, StatutDevis, TypePrestation } from '../lib/types'
 
 // Suggestions de lignes selon le type de prestation (modifiables)
@@ -26,7 +27,7 @@ export default function DevisEdit() {
   const { data, error, reload } = useLoad(async () => {
     const devis = must(await db.from('devis').select('*').eq('id', id!).single()) as Devis
     const client = must(await db.from('clients').select('*').eq('id', devis.client_id).single()) as Client
-    return { devis, client }
+    return { devis, client, params: await chargerParametres() }
   }, [id])
 
   useEffect(() => { if (data) setLignes(data.devis.lignes ?? []) }, [data])
@@ -115,6 +116,24 @@ export default function DevisEdit() {
           <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 24, fontWeight: 700 }}>Total : {euro(total)}</span>
         </div>
       </section>
+
+      {(() => {
+        const r = repartition(total, data.params)
+        return (
+          <section className="card" style={{ gap: 10 }}>
+            <div className="card-head">
+              <h2>Ce que tu gardes sur ce devis</h2>
+              <span className="small muted">Interne · n’apparaît pas sur le PDF</span>
+            </div>
+            <div className="grid-kpi">
+              <div className="kpi"><span className="kpi-label">Chiffre d’affaires</span><span className="kpi-value">{euro(r.montant)}</span></div>
+              <div className="kpi"><span className="kpi-label">URSSAF à prévoir ({String(r.taux).replace('.', ',')} %)</span><span className="kpi-value" style={{ color: 'var(--orange)' }}>− {euro(r.urssaf)}</span></div>
+              <div className="kpi dark"><span className="kpi-label">Net pour l’agence</span><span className="kpi-value">{euro(r.net)}</span></div>
+            </div>
+            <span className="small muted">Les cotisations se paient sur l’encaissé : acompte et solde, au fil des paiements. Taux réglable dans Paramètres agence.</span>
+          </section>
+        )
+      })()}
 
       {msg && <span className="small muted" role="status">{msg}</span>}
       {!verrouille ? (

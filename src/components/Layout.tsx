@@ -34,6 +34,7 @@ export default function Layout() {
         <div className="nav-group">
           <span className="nav-label">PILOTAGE</span>
           {isGerant && <NavLink to="/factures" className={lien}>Factures</NavLink>}
+          {isGerant && <NavLink to="/fiscalite" className={lien}>Fiscalité</NavLink>}
           {isGerant && <NavLink to="/objectifs" className={lien}>Objectifs</NavLink>}
           {isGerant && <NavLink to="/parametres" className={lien}>Paramètres agence</NavLink>}
           <NavLink to="/equipe" className={lien}>Équipe &amp; compte</NavLink>

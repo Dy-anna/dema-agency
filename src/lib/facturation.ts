@@ -8,6 +8,13 @@ export const PARAMETRES_DEFAUT: ParametresAgence = {
   mention_tva: 'TVA non applicable, art. 293 B du CGI',
   validite_devis_jours: 30,
   acompte_pct: 30,
+  regime_social: 'bnc',
+  taux_urssaf: 25.6,
+  cfp_taux: 0.2,
+  acre: false,
+  versement_liberatoire: false,
+  taux_vl: 2.2,
+  declaration: 'trimestrielle',
   conditions: 'Un acompte de 30 % est demandé à la signature pour réserver la date. Le solde est à régler au plus tard le jour de l’événement.',
 }
 

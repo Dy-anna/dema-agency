@@ -17,6 +17,7 @@ import Parametres from './pages/Parametres'
 import Factures from './pages/Factures'
 import { DevisPDF, FacturePDF } from './pages/Documents'
 import Planning from './pages/Planning'
+import Fiscalite from './pages/Fiscalite'
 import FeuilleDeRoute from './pages/FeuilleDeRoute'
 import type { ReactNode } from 'react'
 
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="parametres" element={<GerantOnly><Parametres /></GerantOnly>} />
         <Route path="factures" element={<GerantOnly><Factures /></GerantOnly>} />
         <Route path="planning" element={<Planning />} />
+        <Route path="fiscalite" element={<GerantOnly><Fiscalite /></GerantOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
