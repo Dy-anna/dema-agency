@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { DELAI_RELANCE_JOURS, dateFr, euro, isoDate, joursDepuis } from '../lib/format'
 import ProjetsAVenir from '../components/ProjetsAVenir'
+import FinancesPanel from '../components/FinancesPanel'
 import type { Client, Devis, Evenement, Paiement, Projet, Tache } from '../lib/types'
 
 export default function Dashboard() {
@@ -42,14 +43,7 @@ export default function Dashboard() {
   const prospects = data.clients.filter((c) => c.statut_commercial === 'prospect')
   const enAttente = data.devis.filter((d) => d.statut === 'envoye' || d.statut === 'negociation')
   const relances = enAttente.filter((d) => joursDepuis(d.date_envoi) >= DELAI_RELANCE_JOURS)
-  const annee = new Date().getFullYear()
-  const signesAnnee = data.devis.filter((d) => d.statut === 'signe' && d.date_signature?.startsWith(String(annee)))
-  const caSigne = signesAnnee.reduce((s, d) => s + Number(d.montant), 0)
-  const caPipeline = enAttente.reduce((s, d) => s + Number(d.montant), 0)
-  const encaisse = data.paiements.filter((p) => p.recu && (p.recu_le ?? '').startsWith(String(annee))).reduce((s, p) => s + Number(p.montant), 0)
-  const acomptes = data.paiements.filter((p) => p.type === 'acompte')
-  const acomptesRecus = acomptes.filter((p) => p.recu)
-  const aVenir = data.paiements.filter((p) => !p.recu).slice(0, 5)
+  const aVenir = data.paiements.filter((p) => !p.recu && (p.echeance ?? '9999') >= data.today).slice(0, 5)
   const titreProjet = Object.fromEntries(data.projets.map((p) => [p.id, p.titre]))
 
   const clientsAVenir = new Set(data.evenements.map((e) => e.client_id ?? e.id))
@@ -93,28 +87,9 @@ export default function Dashboard() {
           <span className="kpi-value">{nbProjets}</span>
           <span className="kpi-sub">{nbValides} validé{nbValides > 1 ? 's' : ''} · {nbProjets - nbValides} à confirmer</span>
         </div>
-        {isGerant && (
-          <>
-            <div className="kpi dark">
-              <span className="kpi-label">CA encaissé {annee}</span>
-              <span className="kpi-value">{euro(encaisse)}</span>
-              <span className="kpi-sub">Visible : gérants uniquement</span>
-            </div>
-            <div className="kpi">
-              <span className="kpi-label">CA prévisionnel {annee}</span>
-              <span className="kpi-value" style={{ color: 'var(--accent-dark)' }}>{euro(caSigne + caPipeline)}</span>
-              <span className="kpi-sub">Signé : {euro(caSigne)} · Devis en cours : {euro(caPipeline)}</span>
-            </div>
-            <div className="kpi">
-              <span className="kpi-label">Acomptes reçus</span>
-              <span className="kpi-value">{acomptesRecus.length} / {acomptes.length}</span>
-              <span className="kpi-sub" style={{ color: 'var(--green-ink)', fontWeight: 600 }}>
-                {euro(acomptesRecus.reduce((s, p) => s + Number(p.montant), 0))} encaissés
-              </span>
-            </div>
-          </>
-        )}
       </div>
+
+      {isGerant && <FinancesPanel />}
 
       <ProjetsAVenir evenements={data.evenements} clients={data.clients} projets={data.projets} avancement={avancement} />
 

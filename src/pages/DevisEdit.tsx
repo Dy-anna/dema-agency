@@ -32,6 +32,19 @@ export default function DevisEdit() {
 
   useEffect(() => { if (data) setLignes(data.devis.lignes ?? []) }, [data])
 
+  // Enregistrement automatique : le tableau de bord et la fiscalité restent à jour sans cliquer
+  const [autoMsg, setAutoMsg] = useState('')
+  useEffect(() => {
+    if (!data || data.devis.statut === 'signe') return
+    if (JSON.stringify(lignes) === JSON.stringify(data.devis.lignes ?? [])) return
+    const t = setTimeout(async () => {
+      const montant = lignes.reduce((s, l) => s + (Number(l.quantite) || 0) * (Number(l.prix_unitaire) || 0), 0)
+      const { error } = await db.from('devis').update({ lignes, montant }).eq('id', data.devis.id)
+      setAutoMsg(error ? 'Échec de l’enregistrement automatique' : 'Enregistré automatiquement')
+    }, 800)
+    return () => clearTimeout(t)
+  }, [lignes, data])
+
   if (error) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Chargement…</p>
   const { devis, client } = data
@@ -113,7 +126,10 @@ export default function DevisEdit() {
         </div>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           {!verrouille ? <button type="button" className="btn small" onClick={() => ajouter()}>+ Ligne libre</button> : <span />}
-          <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 24, fontWeight: 700 }}>Total : {euro(total)}</span>
+          <div className="row">
+            {autoMsg && <span className="small muted">{autoMsg}</span>}
+            <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 24, fontWeight: 700 }}>Total : {euro(total)}</span>
+          </div>
         </div>
       </section>
 
