@@ -151,7 +151,7 @@ export default function Objectifs() {
       </div>
       {msg && <span className="small muted" role="status">{msg}</span>}
 
-      <div className="grid-kpi" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      <div className="grid-kpi" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}>
         {INDICATEURS.map((i) => {
           const cible = cibles[cle(i.id)] ?? 0
           const real = realise(i.id, b)

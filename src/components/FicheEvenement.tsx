@@ -136,7 +136,7 @@ export default function FicheEvenement({ client, onSaved }: { client: Client; on
       )}
 
       {onglet === 'questionnaire' && (
-        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
           {questions.map((q) => (
             <label key={q} className="field">{q}
               <textarea value={questionnaire[q] ?? ''} onChange={(e) => maj({ questionnaire: { ...questionnaire, [q]: e.target.value } })} style={{ minHeight: 70 }} />

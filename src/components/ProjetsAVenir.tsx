@@ -66,7 +66,7 @@ export default function ProjetsAVenir({ evenements, clients, projets, avancement
 
       {visibles.length === 0 && <p className="empty">Aucun projet {filtre === 'tous' ? 'à venir' : 'dans cette catégorie'}.</p>}
 
-      <div className="table-wrap">
+      <div className="table-wrap agenda">
         <table>
           {visibles.length > 0 && (
             <thead><tr><th style={{ width: 70 }}>Date</th><th>Projet</th><th>Dates</th><th>Statut</th><th style={{ width: 150 }}>Avancement</th></tr></thead>

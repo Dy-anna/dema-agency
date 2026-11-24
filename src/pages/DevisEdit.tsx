@@ -107,13 +107,13 @@ export default function DevisEdit() {
             ))}
           </div>
         )}
-        <div className="table-wrap">
+        <div className="table-wrap lignes">
           <table>
             <thead><tr><th>Désignation</th><th style={{ width: 90 }}>Qté</th><th style={{ width: 140 }}>Prix unitaire (€)</th><th style={{ width: 120 }}>Total</th><th style={{ width: 50 }} /></tr></thead>
             <tbody>
               {lignes.map((l, i) => (
                 <tr key={i}>
-                  <td><input className="input" style={{ width: '100%' }} aria-label="Désignation" disabled={verrouille} value={l.libelle} onChange={(e) => setLigne(i, { libelle: e.target.value })} /></td>
+                  <td><input className="input" style={{ width: '100%' }} aria-label="Désignation" placeholder="Désignation" disabled={verrouille} value={l.libelle} onChange={(e) => setLigne(i, { libelle: e.target.value })} /></td>
                   <td><input className="input" style={{ width: '100%' }} aria-label="Quantité" type="number" min="0" disabled={verrouille} value={l.quantite} onChange={(e) => setLigne(i, { quantite: Number(e.target.value) })} /></td>
                   <td><input className="input" style={{ width: '100%' }} aria-label="Prix unitaire" type="number" min="0" step="10" disabled={verrouille} value={l.prix_unitaire} onChange={(e) => setLigne(i, { prix_unitaire: Number(e.target.value) })} /></td>
                   <td style={{ fontWeight: 600 }}>{euro(l.quantite * l.prix_unitaire)}</td>

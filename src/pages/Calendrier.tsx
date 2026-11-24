@@ -118,7 +118,7 @@ export default function Calendrier() {
         <button type="button" onClick={() => allerAuMois(annee, m)} className="row"
           style={{ justifyContent: 'space-between', background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit' }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{MOIS[m]} <span className="muted" style={{ fontWeight: 400 }}>{annee}</span></span>
-          {nbEvts > 0 && <span className="badge indigo">{nbEvts} événement{nbEvts > 1 ? 's' : ''}</span>}
+          {nbEvts > 0 && <span className="badge indigo">{nbEvts}<span className="badge-long"> événement{nbEvts > 1 ? 's' : ''}</span></span>}
         </button>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 2, textAlign: 'center' }}>
           {JOURS_COURTS.map((j, i) => <span key={i} style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{j}</span>)}
@@ -159,7 +159,7 @@ export default function Calendrier() {
           <span className="eyebrow">Production</span>
           <h1>{titre}</h1>
         </div>
-        <div className="row">
+        <div className="row cal-actions">
           <div className="seg" role="tablist" aria-label="Affichage">
             <button type="button" role="tab" aria-selected={vue === 'annee'} onClick={() => setVue('annee')}>Vue globale</button>
             <button type="button" role="tab" aria-selected={vue === 'mois'} onClick={() => setVue('mois')}>Mois</button>
@@ -167,7 +167,7 @@ export default function Calendrier() {
           <button className="btn" type="button" aria-label="Précédent" onClick={precedent}>‹</button>
           <button className="btn" type="button" onClick={() => { setAnnee(now.getFullYear()); setMois(now.getMonth()) }}>Aujourd’hui</button>
           <button className="btn" type="button" aria-label="Suivant" onClick={suivant}>›</button>
-          <button className="btn" type="button" onClick={exporterIcs} title="Fichier à importer dans Google Agenda">Exporter (.ics)</button>
+          <button className="btn cal-ics" type="button" onClick={exporterIcs} title="Fichier à importer dans Google Agenda">Exporter (.ics)</button>
           <button className="btn primary" type="button" onClick={() => ouvrirNouveau()}>+ Ajouter un événement</button>
         </div>
       </div>
@@ -188,11 +188,11 @@ export default function Calendrier() {
         </div>
       )}
 
-      <div className="row" style={{ alignItems: 'flex-start', gap: 20 }}>
+      <div className="row cal-layout" style={{ alignItems: 'flex-start', gap: 20 }}>
         {/* Calendrier */}
         <div style={{ flex: '999 1 560px', minWidth: 0 }}>
           {vue === 'annee' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
+            <div className="cal-mini-grid">
               {douzeMois.map(({ a, m }) => miniMois(a, m))}
             </div>
           ) : (
@@ -207,7 +207,8 @@ export default function Calendrier() {
                     const liste = dansMois ? parJour.get(date) ?? [] : []
                     const cls = ['cal-cell', !dansMois && 'out', i % 7 >= 5 && 'weekend', dansMois && estConflit(date) && 'conflict', date === today && 'today'].filter(Boolean).join(' ')
                     return (
-                      <div key={i} className={cls} onDoubleClick={() => dansMois && ouvrirNouveau(date)}>
+                      <div key={i} className={cls} onDoubleClick={() => dansMois && ouvrirNouveau(date)}
+                        onClick={(ev) => { if (dansMois && ev.target === ev.currentTarget && window.matchMedia('(max-width: 760px)').matches) ouvrirNouveau(date) }}>
                         {dansMois && <span className="num">{n}</span>}
                         {liste.map((e) => (
                           <button key={e.id} type="button" className={'evt ' + e.statut} title={`${e.titre} · ${nomStatutEvenement[e.statut]}`} onClick={() => ouvrir(e)}>
@@ -220,13 +221,13 @@ export default function Calendrier() {
                   })}
                 </div>
               </div>
-              <span className="small muted" style={{ display: 'block', marginTop: 8 }}>Astuce : double-clique sur un jour pour y ajouter un événement.</span>
+              <span className="small muted" style={{ display: 'block', marginTop: 8 }}>Astuce : double-clique (ou touche, sur téléphone) un jour vide pour y ajouter un événement.</span>
             </>
           )}
         </div>
 
         {/* À venir */}
-        <aside className="card" style={{ flex: '1 1 300px', gap: 4 }}>
+        <aside className="card cal-aside" style={{ flex: '1 1 300px', gap: 4 }}>
           <div className="card-head" style={{ paddingBottom: 6 }}>
             <h2>À venir</h2>
             <span className="small muted">{data?.aVenir.length ?? 0} prochain{(data?.aVenir.length ?? 0) > 1 ? 's' : ''}</span>

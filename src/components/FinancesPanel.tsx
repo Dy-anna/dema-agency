@@ -78,7 +78,7 @@ export default function FinancesPanel() {
         </div>
       </div>
 
-      <div className="grid-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      <div className="grid-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
         <div className="stack" style={{ gap: 0 }}>
           <div className="row" style={{ justifyContent: 'space-between', paddingBottom: 6 }}>
             <strong style={{ fontSize: 14 }}>Impayés · prestations déjà réalisées</strong>
