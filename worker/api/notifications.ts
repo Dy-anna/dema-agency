@@ -250,7 +250,7 @@ export async function envoyerAlertesPush(env: Env) {
     if (!nouvelles.length) continue
     const msgs: MessagePush[] = nouvelles.length <= 3
       ? nouvelles.map((a) => ({ title: a.titre, body: a.texte, url: a.lien, tag: a.cle }))
-      : [{ title: `DEMA · ${nouvelles.length} alertes`, body: nouvelles.slice(0, 4).map((a) => '• ' + a.titre).join('\n'), url: '/?notifications=1', tag: 'resume' }]
+      : [{ title: `DEMA · ${nouvelles.length} alertes`, body: nouvelles.slice(0, 4).map((a) => '• ' + a.titre).join('\n'), url: '/notifications', tag: 'resume' }]
     const abos = await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', u.id)
     for (const ab of abos) for (const m of msgs) await envoyer(env, ab, m)
     await env.DB.batch(nouvelles.map((a) => env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u.id, a.cle)))
@@ -382,7 +382,7 @@ export async function handleNotifications(request: Request, env: Env, action: st
     const msg: MessagePush = {
       title: 'DEMA Agency · notifications activées ✅',
       body: alertes.length ? `${alertes.length} alerte${alertes.length > 1 ? 's' : ''} en cours, dont : ${alertes[0].titre}` : 'Tu recevras ici les tournages, impayés, relances et contrats à signer.',
-      url: '/?notifications=1', tag: 'test',
+      url: '/notifications', tag: 'test',
     }
     let ok = 0
     for (const ab of abos) if (await envoyer(env, ab, msg)) ok++
