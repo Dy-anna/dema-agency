@@ -1,6 +1,7 @@
 // API de données générique et sécurisée : tables et colonnes en liste blanche,
 // requêtes paramétrées, droits par rôle (finance réservée aux gérants).
 import { fail, getUser, json, type Env, type User } from '../_lib/auth'
+import { notifierCalendrier, type ChangementCalendrier, type EvtNotif } from './notifications'
 
 type ColType = 'text' | 'num' | 'bool' | 'json'
 interface TableDef { cols: Record<string, ColType>; gerantOnly?: boolean; readOnly?: boolean }
@@ -88,7 +89,7 @@ function cols(def: TableDef, list?: string[]) {
   return list.map((c) => checkCol(def, c))
 }
 
-async function run(env: Env, user: User, b: Body) {
+async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] = []) {
   const def = T[b.table]
   if (!def) throw new Bad('Table inconnue')
   if (def.gerantOnly && user.role !== 'gerant') throw new Bad('Réservé aux gérants', 403)
@@ -148,6 +149,9 @@ async function run(env: Env, user: User, b: Body) {
       out.push({ id: row.id })
     }
     await env.DB.batch(stmts)
+    if (b.table === 'evenements' && b.op === 'insert') {
+      for (const e of await lireEvts(env, out.map((o) => o.id as string))) suivi.push({ type: 'ajout', evt: e })
+    }
     if (ret) {
       const ids = out.map((o) => o.id as string)
       const { results } = await env.DB.prepare(`SELECT ${ret.join(', ')} FROM ${b.table} WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()
@@ -162,14 +166,25 @@ async function run(env: Env, user: User, b: Body) {
     const keys = Object.keys(v).filter((k) => k !== 'id' && v[k] !== undefined).map((k) => checkCol(def, k))
     if (!keys.length) return { data: null }
     const w = where(def, b.filters)
+    const avant = b.table === 'evenements' ? await lireEvtsWhere(env, w) : []
     await env.DB.prepare(`UPDATE ${b.table} SET ${keys.map((k) => `${k} = ?`).join(', ')}${w.sql}`)
       .bind(...keys.map((k) => toDb(def.cols[k], v[k])), ...w.binds).run()
+    if (avant.length) {
+      for (const e of await lireEvts(env, avant.map((x) => x.id))) {
+        const a = avant.find((x) => x.id === e.id)!
+        if (a.statut !== e.statut && e.statut === 'confirme') suivi.push({ type: 'confirme', evt: e })
+        else if (a.statut !== e.statut && e.statut === 'annule') suivi.push({ type: 'annule', evt: e })
+        else if (a.statut === 'annule' && e.statut !== 'annule') suivi.push({ type: 'retabli', evt: e })
+        else if (a.date !== e.date) suivi.push({ type: 'deplace', evt: e, ancienneDate: a.date })
+      }
+    }
     return { data: null }
   }
 
   if (b.op === 'delete') {
     if (!b.filters?.length) throw new Bad('Filtre obligatoire')
     const w = where(def, b.filters)
+    if (b.table === 'evenements') for (const e of await lireEvtsWhere(env, w)) if (e.statut !== 'annule') suivi.push({ type: 'supprime', evt: e })
     await env.DB.prepare(`DELETE FROM ${b.table}${w.sql}`).bind(...w.binds).run()
     return { data: null }
   }
@@ -177,12 +192,27 @@ async function run(env: Env, user: User, b: Body) {
   throw new Bad('Opération inconnue')
 }
 
-export async function handleQuery(request: Request, env: Env): Promise<Response> {
+const COLS_EVT = 'id, titre, date, statut, type_prestation, client_id'
+async function lireEvts(env: Env, ids: string[]) {
+  if (!ids.length) return []
+  const { results } = await env.DB.prepare(`SELECT ${COLS_EVT} FROM evenements WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<EvtNotif>()
+  return results ?? []
+}
+async function lireEvtsWhere(env: Env, w: { sql: string; binds: unknown[] }) {
+  const { results } = await env.DB.prepare(`SELECT ${COLS_EVT} FROM evenements${w.sql} LIMIT 50`).bind(...w.binds).all<EvtNotif>()
+  return results ?? []
+}
+
+export async function handleQuery(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const user = await getUser(env, request)
   if (!user) return fail('Non connecté', 401)
   try {
     const body = (await request.json()) as Body
-    return json(await run(env, user, body))
+    const suivi: ChangementCalendrier[] = []
+    const res = await run(env, user, body, suivi)
+    // Notifie l'équipe des changements du calendrier sans faire attendre la réponse
+    if (suivi.length) ctx.waitUntil(notifierCalendrier(env, user, suivi).catch((e) => console.error('notif calendrier', e)))
+    return json(res)
   } catch (e) {
     if (e instanceof Bad) return fail(e.message, e.status)
     console.error(e)

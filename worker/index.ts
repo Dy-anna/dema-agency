@@ -9,7 +9,7 @@ import { ensureSchema } from './schema'
 interface WorkerEnv extends Env { ASSETS: Fetcher }
 
 export default {
-  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url)
 
     if (pathname.startsWith('/api/')) {
@@ -21,7 +21,7 @@ export default {
       if (notif) return handleNotifications(request, env, notif[1] ?? '')
       if (pathname === '/api/query') {
         if (request.method !== 'POST') return fail('Méthode non autorisée', 405)
-        return handleQuery(request, env)
+        return handleQuery(request, env, ctx)
       }
       return fail('Introuvable', 404)
     }

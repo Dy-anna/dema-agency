@@ -20,3 +20,16 @@ CREATE TABLE IF NOT EXISTS push_envoyes (
   PRIMARY KEY (user_id, cle)
 );
 CREATE TABLE IF NOT EXISTS push_cles ( id TEXT PRIMARY KEY, publique TEXT NOT NULL, privee TEXT NOT NULL );
+-- Journal du calendrier : dates ajoutées, confirmées, annulées, déplacées (notifié à l'équipe)
+CREATE TABLE IF NOT EXISTS journal (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  evenement_id TEXT,
+  auteur_id TEXT,
+  auteur_nom TEXT,
+  titre TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  lien TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_journal_date ON journal(created_at);

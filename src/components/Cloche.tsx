@@ -79,7 +79,7 @@ export default function Cloche() {
           <div className="cloche-push">
             {push === 'actif' && (
               <>
-                <span className="small"><strong>🔔 Notifications activées</strong> sur cet appareil : tournages, impayés, relances, contrats. Envoi à 8 h et 18 h.</span>
+                <span className="small"><strong>🔔 Notifications activées</strong> sur cet appareil : tournages, impayés, relances, contrats. Dates du calendrier ajoutées, confirmées ou annulées : tout de suite. Le reste : à 8 h et 18 h.</span>
                 <div className="row" style={{ gap: 6 }}>
                   <button type="button" className="btn small" disabled={occupe} onClick={() => action(envoyerTest, 'Notification de test envoyée.')}>Tester</button>
                   <button type="button" className="btn small" disabled={occupe} onClick={() => action(desactiverPush, 'Notifications désactivées sur cet appareil.')}>Désactiver</button>

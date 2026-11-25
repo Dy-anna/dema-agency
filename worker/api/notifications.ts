@@ -164,6 +164,18 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
     })
   }
 
+  // 9. Changements du calendrier faits par les autres (3 derniers jours)
+  const journal = await all<{ id: string; type: string; titre: string; texte: string; lien: string; created_at: string; date: string | null }>(env,
+    `SELECT j.id, j.type, j.titre, j.texte, j.lien, j.created_at, e.date FROM journal j LEFT JOIN evenements e ON e.id = j.evenement_id
+     WHERE j.created_at >= ? AND COALESCE(j.auteur_id, '') != ? ORDER BY j.created_at DESC LIMIT 30`,
+    new Date(Date.now() - 3 * 86400000).toISOString(), user.id)
+  for (const j of journal) {
+    out.push({
+      cle: `journal:${j.id}`, niveau: j.type === 'annule' || j.type === 'deplace' || j.type === 'supprime' ? 'important' : 'info',
+      categorie: 'tournage', titre: j.titre, texte: j.texte, lien: j.lien, date: j.date, push: false,
+    })
+  }
+
   const rang = { urgent: 0, important: 1, info: 2 }
   return out.sort((a, b) => rang[a.niveau] - rang[b.niveau] || (a.date ?? '9999').localeCompare(b.date ?? '9999'))
 }
@@ -216,6 +228,44 @@ export async function envoyerAlertesPush(env: Env) {
     await env.DB.batch(nouvelles.map((a) => env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u.id, a.cle)))
   }
   await env.DB.prepare(`DELETE FROM push_envoyes WHERE envoye_le < ?`).bind(new Date(Date.now() - 90 * 86400000).toISOString()).run()
+}
+
+// ───────── Notification immédiate des changements du calendrier ─────────
+export interface EvtNotif { id: string; titre: string; date: string; statut: string; type_prestation: string; client_id: string | null }
+export interface ChangementCalendrier { type: 'ajout' | 'confirme' | 'annule' | 'retabli' | 'deplace' | 'supprime'; evt: EvtNotif; ancienneDate?: string }
+
+const TYPES: Record<string, string> = { mariage: 'Mariage', evenementiel: 'Événementiel', corporate: 'Événement corporate', shooting: 'Shooting', autre: 'Autre' }
+const STATUTS: Record<string, string> = { previsionnel: 'prévisionnel', confirme: 'confirmé', annule: 'annulé' }
+
+export async function notifierCalendrier(env: Env, auteur: User, changements: ChangementCalendrier[]) {
+  const prenom = auteur.nom?.split(' ')[0] || auteur.email
+  const entrees = changements.slice(0, 10).map((c) => {
+    const e = c.evt
+    const quandTxt = dateCourte(e.date)
+    const intro = { ajout: '📅 Nouvelle date', confirme: '✅ Date confirmée', annule: '❌ Date annulée', retabli: '↩️ Date rétablie', deplace: '🔁 Date déplacée', supprime: '🗑️ Date supprimée' }[c.type]
+    const detail = c.type === 'deplace' && c.ancienneDate ? `${dateCourte(c.ancienneDate)} → ${quandTxt}` : quandTxt
+    return {
+      id: crypto.randomUUID(), type: c.type, evenement_id: c.type === 'supprime' ? null : e.id,
+      titre: `${intro} · ${e.titre}`,
+      texte: `${detail} · ${TYPES[e.type_prestation] ?? e.type_prestation}${c.type === 'ajout' ? ` · ${STATUTS[e.statut] ?? e.statut}` : ''} — par ${prenom}`,
+      lien: e.client_id && c.type !== 'supprime' ? `/clients/${e.client_id}` : '/calendrier',
+    }
+  })
+  if (!entrees.length) return
+  await env.DB.batch(entrees.map((j) => env.DB.prepare(
+    'INSERT INTO journal (id, type, evenement_id, auteur_id, auteur_nom, titre, texte, lien) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(j.id, j.type, j.evenement_id, auteur.id, auteur.nom, j.titre, j.texte, j.lien)))
+
+  // Push tout de suite à toute l'équipe abonnée, sauf l'auteur
+  const abos = await all<Abonnement & { user_id: string }>(env,
+    `SELECT a.* FROM push_abonnements a JOIN profiles p ON p.id = a.user_id WHERE p.actif = 1 AND a.user_id != ?`, auteur.id)
+  const msgs: MessagePush[] = entrees.length <= 3
+    ? entrees.map((j) => ({ title: j.titre, body: j.texte, url: j.lien, tag: 'cal' + j.id.slice(0, 8) }))
+    : [{ title: `📅 ${entrees.length} changements au calendrier`, body: entrees.slice(0, 4).map((j) => '• ' + j.titre.replace(/^\S+ /, '')).join('\n'), url: '/calendrier', tag: 'calendrier' }]
+  for (const ab of abos) for (const m of msgs) await envoyer(env, ab, m)
+  const users = [...new Set(abos.map((a) => a.user_id))]
+  if (users.length) await env.DB.batch(users.flatMap((u) => entrees.map((j) => env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u, `journal:${j.id}`))))
+  await env.DB.prepare('DELETE FROM journal WHERE created_at < ?').bind(new Date(Date.now() - 60 * 86400000).toISOString()).run()
 }
 
 // ───────── API /api/notifications/* ─────────
