@@ -324,7 +324,7 @@ function concernes(r: { participants: string; created_by: string | null }) {
   try { p = JSON.parse(r.participants || '[]') } catch { /* vide */ }
   return [...new Set([...p, ...(r.created_by ? [r.created_by] : [])])]
 }
-const minutesParis = (d = new Date()) => {
+export const minutesParis = (d = new Date()) => {
   const parts = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d)
   return Number(parts.find((x) => x.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((x) => x.type === 'minute')?.value ?? 0)
 }

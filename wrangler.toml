@@ -19,9 +19,10 @@ database_name = "dema-agency-eu"
 database_id = "0669373a-5e64-49e0-a64a-ce9124511a74"
 migrations_dir = "migrations"
 
-# Notifications push : 8h et 18h (heure de Paris en hiver) + rappels de rendez-vous toutes les 15 min
+# Une seule tâche planifiée (toutes les 15 min) : rappels de rendez-vous,
+# et à 8h / 18h heure de Paris (été comme hiver) l'envoi des alertes du jour
 [triggers]
-crons = ["0 7 * * *", "0 17 * * *", "*/15 * * * *"]
+crons = ["*/15 * * * *"]
 
 [observability]
 enabled = true

@@ -3,7 +3,7 @@ import { fail, type Env } from './_lib/auth'
 import { handleAuth } from './api/auth'
 import { handleQuery } from './api/query'
 import { handleTeam } from './api/team'
-import { envoyerAlertesPush, handleNotifications, rappelsRendezVous } from './api/notifications'
+import { envoyerAlertesPush, handleNotifications, minutesParis, rappelsRendezVous } from './api/notifications'
 import { ensureSchema } from './schema'
 
 interface WorkerEnv extends Env { ASSETS: Fetcher }
@@ -31,10 +31,11 @@ export default {
 
   // Tâche planifiée (matin et soir) : envoie les nouvelles alertes en push
   async scheduled(event: ScheduledController, env: WorkerEnv, ctx: ExecutionContext) {
-    // Toutes les 15 min : rappels juste avant les rendez-vous ; à 8 h et 18 h : toutes les alertes
+    // Toutes les 15 min : rappels de rendez-vous ; le créneau de 8h et celui de 18h (Paris) : toutes les alertes
     ctx.waitUntil(ensureSchema(env).then(async () => {
-      if (event.cron === '*/15 * * * *') await rappelsRendezVous(env)
-      else await envoyerAlertesPush(env)
+      await rappelsRendezVous(env)
+      const m = minutesParis(new Date(event.scheduledTime))
+      if ((m >= 480 && m < 495) || (m >= 1080 && m < 1095)) await envoyerAlertesPush(env)
     }))
   },
 } satisfies ExportedHandler<WorkerEnv>
