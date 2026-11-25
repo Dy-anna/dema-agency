@@ -5,7 +5,7 @@ import {
 } from '../lib/notifications'
 
 const ICONE: Record<Alerte['categorie'], string> = {
-  tournage: '🎬', finance: '€', commercial: '✉', equipe: '👥', contrat: '✍', fiche: '☎', tache: '✓',
+  tournage: '🎬', finance: '€', commercial: '✉', equipe: '👥', contrat: '✍', fiche: '☎', tache: '✓', chasse: '🎯',
 }
 type EtatPush = Awaited<ReturnType<typeof etatPush>>
 

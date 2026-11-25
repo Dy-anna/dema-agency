@@ -87,6 +87,7 @@ export default function Layout() {
           <span className="nav-label">COMMERCIAL</span>
           <NavLink to="/" end className={lien}>Tableau de bord</NavLink>
           <NavLink to="/clients" className={lien}>Clients</NavLink>
+          <NavLink to="/chasse" className={lien}>Chasseur de têtes</NavLink>
           {isGerant && <NavLink to="/pipeline" className={lien}>Pipeline &amp; devis</NavLink>}
         </div>
         <div className="nav-group">

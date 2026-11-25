@@ -6,7 +6,7 @@ import { fail, getUser, json, type Env, type User } from '../_lib/auth'
 export interface Alerte {
   cle: string
   niveau: 'urgent' | 'important' | 'info'
-  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache'
+  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache' | 'chasse'
   titre: string
   texte: string
   lien: string
@@ -164,7 +164,22 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
     })
   }
 
-  // 9. Changements du calendrier faits par les autres (3 derniers jours)
+  // 9. Chasseur de têtes : actions du jour et en retard (pour qui s'en charge)
+  const chasse = await all<{ id: string; titre: string; echeance: string; cible_id: string; nom: string; priorite: string }>(env,
+    `SELECT a.id, a.titre, a.echeance, a.cible_id, c.nom, c.priorite FROM cible_actions a JOIN cibles c ON c.id = a.cible_id
+     WHERE a.fait = 0 AND a.echeance IS NOT NULL AND a.echeance <= ? AND c.statut NOT IN ('converti','pas_interesse')
+       AND (COALESCE(a.assigne_a, c.responsable_id) = ? OR (COALESCE(a.assigne_a, c.responsable_id) IS NULL AND ? = 1))
+     ORDER BY a.echeance`, today, user.id, gerant ? 1 : 0)
+  for (const a of chasse) {
+    const retard = ecart(a.echeance, today)
+    out.push({
+      cle: `chasse:${a.id}:${retard > 0 ? 'retard' : 'jour'}`, niveau: retard > 0 ? 'important' : 'info', categorie: 'chasse',
+      titre: `${retard > 0 ? 'Action en retard' : 'À faire aujourd’hui'} · ${a.nom}${a.priorite === 'A' ? ' (A)' : ''}`,
+      texte: a.titre + (retard > 0 ? ` · prévue ${dateCourte(a.echeance)}` : ''), lien: `/chasse/${a.cible_id}`, date: a.echeance, push: true,
+    })
+  }
+
+  // 10. Changements du calendrier faits par les autres (3 derniers jours)
   const journal = await all<{ id: string; type: string; titre: string; texte: string; lien: string; created_at: string; date: string | null }>(env,
     `SELECT j.id, j.type, j.titre, j.texte, j.lien, j.created_at, e.date FROM journal j LEFT JOIN evenements e ON e.id = j.evenement_id
      WHERE j.created_at >= ? AND COALESCE(j.auteur_id, '') != ? ORDER BY j.created_at DESC LIMIT 30`,

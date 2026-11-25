@@ -2,7 +2,7 @@
 export interface Alerte {
   cle: string
   niveau: 'urgent' | 'important' | 'info'
-  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache'
+  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache' | 'chasse'
   titre: string
   texte: string
   lien: string

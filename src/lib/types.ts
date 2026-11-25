@@ -187,3 +187,38 @@ export interface Contrat {
   notes: string | null
   created_at?: string
 }
+
+export type StatutCible = 'a_cibler' | 'contacte' | 'discussion' | 'rdv' | 'converti' | 'pas_interesse'
+export interface Cible {
+  id: string
+  nom: string
+  categorie: string
+  contact_nom: string | null
+  contact_role: string | null
+  telephone: string | null
+  email: string | null
+  reseau: string | null
+  site: string | null
+  type_prestation: TypePrestation
+  priorite: 'A' | 'B' | 'C'
+  potentiel: number
+  source: string | null
+  statut: StatutCible
+  responsable_id: string | null
+  client_id: string | null
+  notes: string | null
+  created_at?: string
+}
+export interface CibleAction {
+  id: string
+  cible_id: string
+  type: string
+  titre: string
+  echeance: string | null
+  assigne_a: string | null
+  fait: boolean
+  fait_le: string | null
+  resultat: string | null
+  created_at?: string
+  cibles?: Pick<Cible, 'nom' | 'priorite' | 'statut'> | null
+}

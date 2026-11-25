@@ -18,6 +18,8 @@ const T: Record<string, TableDef> = {
   factures: { gerantOnly: true, cols: { id: 'text', numero: 'text', client_id: 'text', projet_id: 'text', devis_id: 'text', paiement_id: 'text', type: 'text', lignes: 'json', montant_ht: 'num', tva_taux: 'num', montant_ttc: 'num', date_emission: 'text', echeance: 'text', statut: 'text', created_at: 'text' } },
   affectations: { cols: { id: 'text', evenement_id: 'text', profile_id: 'text', nom_libre: 'text', poste: 'text', horaires: 'text', created_at: 'text' } },
   contrats: { gerantOnly: true, cols: { id: 'text', nom: 'text', telephone: 'text', email: 'text', adresse: 'text', profile_id: 'text', type: 'text', poste: 'text', date_debut: 'text', date_fin: 'text', rythme: 'text', missions: 'text', remuneration: 'text', montant: 'num', accords: 'json', statut: 'text', date_signature: 'text', notes: 'text', created_at: 'text' } },
+  cibles: { cols: { id: 'text', nom: 'text', categorie: 'text', contact_nom: 'text', contact_role: 'text', telephone: 'text', email: 'text', reseau: 'text', site: 'text', type_prestation: 'text', priorite: 'text', potentiel: 'num', source: 'text', statut: 'text', responsable_id: 'text', client_id: 'text', notes: 'text', created_at: 'text' } },
+  cible_actions: { cols: { id: 'text', cible_id: 'text', type: 'text', titre: 'text', echeance: 'text', assigne_a: 'text', fait: 'bool', fait_le: 'text', resultat: 'text', created_at: 'text' } },
   objectifs: { gerantOnly: true, cols: { id: 'text', annee: 'num', periode: 'text', numero: 'num', indicateur: 'text', cible: 'num' } },
 }
 // Jointures autorisées : table embarquée -> colonne de clé étrangère
@@ -26,6 +28,7 @@ const EMBEDS: Record<string, Record<string, string>> = {
   paiements: { projets: 'projet_id' },
   factures: { clients: 'client_id' },
   affectations: { evenements: 'evenement_id', profiles: 'profile_id' },
+  cible_actions: { cibles: 'cible_id' },
 }
 const OPS: Record<string, string> = { eq: '=', neq: '!=', gt: '>', gte: '>=', lt: '<', lte: '<=' }
 

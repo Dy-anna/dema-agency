@@ -20,6 +20,8 @@ import Planning from './pages/Planning'
 import Fiscalite from './pages/Fiscalite'
 import FeuilleDeRoute from './pages/FeuilleDeRoute'
 import Contrats from './pages/Contrats'
+import Chasse from './pages/Chasse'
+import CibleEdit from './pages/CibleEdit'
 import ContratEdit from './pages/ContratEdit'
 import ContratPDF from './pages/ContratPDF'
 import type { ReactNode } from 'react'
@@ -56,6 +58,8 @@ export default function App() {
         <Route path="parametres" element={<GerantOnly><Parametres /></GerantOnly>} />
         <Route path="factures" element={<GerantOnly><Factures /></GerantOnly>} />
         <Route path="planning" element={<Planning />} />
+        <Route path="chasse" element={<Chasse />} />
+        <Route path="chasse/:id" element={<CibleEdit />} />
         <Route path="contrats" element={<GerantOnly><Contrats /></GerantOnly>} />
         <Route path="contrats/:id" element={<GerantOnly><ContratEdit /></GerantOnly>} />
         <Route path="fiscalite" element={<GerantOnly><Fiscalite /></GerantOnly>} />
