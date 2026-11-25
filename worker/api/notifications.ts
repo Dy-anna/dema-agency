@@ -6,7 +6,7 @@ import { fail, getUser, json, type Env, type User } from '../_lib/auth'
 export interface Alerte {
   cle: string
   niveau: 'urgent' | 'important' | 'info'
-  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache' | 'chasse'
+  categorie: 'tournage' | 'finance' | 'commercial' | 'equipe' | 'contrat' | 'fiche' | 'tache' | 'chasse' | 'rdv'
   titre: string
   texte: string
   lien: string
@@ -190,7 +190,24 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
     })
   }
 
-  // 10. Changements du calendrier faits par les autres (3 derniers jours)
+  // 10. Rendez-vous : aujourd'hui, demain, et ceux passés sans compte rendu
+  const rdvs = await all<{ id: string; titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; participants: string; created_by: string | null }>(env,
+    `SELECT id, titre, date, heure, lieu, visio, participants, created_by FROM rendezvous WHERE statut = 'prevu' AND date BETWEEN ? AND ? ORDER BY date, heure`,
+    plus(today, -7), plus(today, 1))
+  for (const r of rdvs.filter((x) => concerne(x, user.id))) {
+    const n = ecart(today, r.date)
+    const ou = r.lieu || (r.visio ? 'en visio' : '')
+    if (n < 0) {
+      out.push({ cle: `rdv:${r.id}:cr`, niveau: 'info', categorie: 'rdv', titre: `Compte rendu à faire · ${r.titre}`,
+        texte: `Rendez-vous du ${dateCourte(r.date)} : marque-le comme fait et note ce qui a été dit.`, lien: `/rendez-vous?id=${r.id}`, date: r.date, push: false })
+    } else {
+      out.push({ cle: `rdv:${r.id}:${n === 0 ? 'jour' : 'veille'}`, niveau: n === 0 ? 'urgent' : 'important', categorie: 'rdv',
+        titre: `${n === 0 ? 'Rendez-vous aujourd’hui' : 'Rendez-vous demain'}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''} · ${r.titre}`,
+        texte: ou ? `📍 ${ou}` : 'Lieu à préciser', lien: `/rendez-vous?id=${r.id}`, date: r.date, push: true })
+    }
+  }
+
+  // 11. Changements du calendrier faits par les autres (3 derniers jours)
   const journal = await all<{ id: string; type: string; titre: string; texte: string; lien: string; created_at: string; date: string | null }>(env,
     `SELECT j.id, j.type, j.titre, j.texte, j.lien, j.created_at, e.date FROM journal j LEFT JOIN evenements e ON e.id = j.evenement_id
      WHERE j.created_at >= ? AND COALESCE(j.auteur_id, '') != ? AND (j.destinataire_id IS NULL OR j.destinataire_id = ?)
@@ -296,13 +313,85 @@ export async function notifierCalendrier(env: Env, auteur: User, changements: Ch
   await env.DB.prepare('DELETE FROM journal WHERE created_at < ?').bind(new Date(Date.now() - 60 * 86400000).toISOString()).run()
 }
 
+// ───────── Rendez-vous : qui est concerné, rappel juste avant ─────────
+function concerne(r: { participants: string; created_by: string | null }, userId: string) {
+  let p: string[] = []
+  try { p = JSON.parse(r.participants || '[]') } catch { /* vide */ }
+  return p.includes(userId) || r.created_by === userId
+}
+function concernes(r: { participants: string; created_by: string | null }) {
+  let p: string[] = []
+  try { p = JSON.parse(r.participants || '[]') } catch { /* vide */ }
+  return [...new Set([...p, ...(r.created_by ? [r.created_by] : [])])]
+}
+const minutesParis = (d = new Date()) => {
+  const parts = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d)
+  return Number(parts.find((x) => x.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((x) => x.type === 'minute')?.value ?? 0)
+}
+const enMinutes = (h: string) => { const [a, b] = h.split(':').map(Number); return (a || 0) * 60 + (b || 0) }
+const libelleDelai = (m: number) => (m >= 120 ? `${Math.round(m / 60)} h` : m >= 60 ? '1 h' : `${Math.max(1, Math.round(m / 5) * 5)} min`)
+
+/** Toutes les 15 min : rappel « dans X min » avant chaque rendez-vous du jour + rappels à date/heure choisie */
+export async function rappelsRendezVous(env: Env) {
+  const today = jourParis()
+  const maintenant = minutesParis()
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  const instant = `${today}T${hm(maintenant)}`
+  const ilYa = maintenant >= 45 ? `${today}T${hm(maintenant - 45)}` : `${today}T00:00`
+  // Rappels personnalisés arrivés à échéance (fenêtre de 45 min pour ne rien rater)
+  const perso = await all<{ id: string; titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; rappel_le: string; participants: string; created_by: string | null }>(env,
+    `SELECT id, titre, date, heure, lieu, visio, rappel_le, participants, created_by FROM rendezvous
+     WHERE statut = 'prevu' AND rappel_le IS NOT NULL AND rappel_le <= ? AND rappel_le >= ?`, instant, ilYa)
+  for (const r of perso) {
+    const cle = `rdv:${r.id}:perso:${r.rappel_le}`
+    for (const u of concernes(r)) {
+      if (await env.DB.prepare('SELECT 1 FROM push_envoyes WHERE user_id = ? AND cle = ?').bind(u, cle).first()) continue
+      const abos = await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', u)
+      const ou = r.lieu || (r.visio ? 'en visio' : '')
+      for (const ab of abos) await envoyer(env, ab, {
+        title: `🔔 Rappel · ${r.titre}`,
+        body: `Rendez-vous ${quand(today, r.date)}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''}${ou ? ` · ${ou}` : ''}`, url: `/rendez-vous?id=${r.id}`, tag: 'rdvp' + r.id.slice(0, 8),
+      })
+      await env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u, cle).run()
+    }
+  }
+  const rdvs = await all<{ id: string; titre: string; heure: string; lieu: string | null; visio: string | null; rappel: number; participants: string; created_by: string | null }>(env,
+    `SELECT id, titre, heure, lieu, visio, rappel, participants, created_by FROM rendezvous WHERE statut = 'prevu' AND date = ? AND heure IS NOT NULL AND rappel > 0`, today)
+  for (const r of rdvs) {
+    const reste = enMinutes(r.heure) - maintenant
+    if (reste > r.rappel + 7 || reste < -10) continue
+    for (const u of concernes(r)) {
+      const cle = `rdv:${r.id}:rappel`
+      const deja = await env.DB.prepare('SELECT 1 FROM push_envoyes WHERE user_id = ? AND cle = ?').bind(u, cle).first()
+      if (deja) continue
+      const abos = await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', u)
+      const ou = r.lieu || (r.visio ? 'Visio : ' + r.visio : '')
+      for (const ab of abos) await envoyer(env, ab, {
+        title: reste > 2 ? `⏰ Dans ${libelleDelai(reste)} · ${r.titre}` : `⏰ C’est l’heure · ${r.titre}`,
+        body: `Rendez-vous à ${r.heure.replace(':', 'h')}${ou ? ` · ${ou}` : ''}`, url: `/rendez-vous?id=${r.id}`, tag: 'rdv' + r.id.slice(0, 8),
+      })
+      await env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u, cle).run()
+    }
+  }
+}
+
 // ───────── Tâche attribuée : notification personnelle immédiate ─────────
-export interface Attribution { table: 'taches' | 'cible_actions'; id: string; assigne_a: string }
+export interface Attribution { table: 'taches' | 'cible_actions' | 'rendezvous'; id: string; assigne_a: string }
 
 export async function notifierAttributions(env: Env, auteur: User, liste: Attribution[]) {
   const prenom = auteur.nom?.split(' ')[0] || auteur.email
   const entrees: { id: string; ref: string; dest: string; titre: string; texte: string; lien: string }[] = []
   for (const a of liste.slice(0, 30)) {
+    if (a.table === 'rendezvous') {
+      const r = await env.DB.prepare('SELECT titre, date, heure, lieu, visio, participants, created_by FROM rendezvous WHERE id = ?')
+        .bind(a.id).first<{ titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; participants: string; created_by: string | null }>()
+      if (!r) continue
+      for (const dest of concernes(r).filter((u) => u !== auteur.id)) {
+        entrees.push({ id: crypto.randomUUID(), ref: a.id, dest, titre: `📅 Nouveau rendez-vous · ${r.titre}`,
+          texte: `${dateCourte(r.date)}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''}${r.lieu ? ` · ${r.lieu}` : r.visio ? ' · en visio' : ''} — de ${prenom}`, lien: `/rendez-vous?id=${a.id}` })
+      }
+      continue
+    }
     if (a.assigne_a === auteur.id) continue
     if (a.table === 'taches') {
       const t = await env.DB.prepare(`SELECT t.titre, t.echeance, t.projet_id, p.titre AS projet, p.date_evenement AS date FROM taches t JOIN projets p ON p.id = t.projet_id WHERE t.id = ?`)

@@ -270,6 +270,11 @@ tr.clickable:hover td { background: #faf9f7; }
 .alerte-point { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; margin-top: 6px; }
 .main > .page-head:first-child, .main > :first-child .page-head { padding-right: 60px; }
 
+/* Rendez-vous */
+.rdv-ligne { display: flex; gap: 14px; align-items: flex-start; width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--line-soft); background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.rdv-ligne:hover { background: #faf9f7; }
+.rdv-heure { flex: none; width: 64px; display: flex; flex-direction: column; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px; }
+
 /* Barres mobiles (masquées sur ordinateur) */
 .topbar, .tabbar, .drawer-close, .drawer-back { display: none; }
 .cal-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }

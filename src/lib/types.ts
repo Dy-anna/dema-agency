@@ -223,3 +223,26 @@ export interface CibleAction {
   created_at?: string
   cibles?: Pick<Cible, 'nom' | 'priorite' | 'statut'> | null
 }
+
+export interface RendezVous {
+  id: string
+  titre: string
+  type: string
+  date: string
+  heure: string | null
+  duree: number
+  lieu: string | null
+  visio: string | null
+  client_id: string | null
+  cible_id: string | null
+  participants: string[]
+  rappel: number
+  rappel_le: string | null
+  statut: 'prevu' | 'fait' | 'annule'
+  notes: string | null
+  compte_rendu: string | null
+  created_by: string | null
+  created_at?: string
+  clients?: { nom: string } | null
+  cibles?: { nom: string } | null
+}

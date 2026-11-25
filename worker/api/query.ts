@@ -20,6 +20,7 @@ const T: Record<string, TableDef> = {
   contrats: { gerantOnly: true, cols: { id: 'text', nom: 'text', telephone: 'text', email: 'text', adresse: 'text', profile_id: 'text', type: 'text', poste: 'text', date_debut: 'text', date_fin: 'text', rythme: 'text', missions: 'text', remuneration: 'text', montant: 'num', accords: 'json', statut: 'text', date_signature: 'text', notes: 'text', created_at: 'text' } },
   cibles: { cols: { id: 'text', nom: 'text', categorie: 'text', contact_nom: 'text', contact_role: 'text', telephone: 'text', email: 'text', reseau: 'text', site: 'text', type_prestation: 'text', priorite: 'text', potentiel: 'num', source: 'text', statut: 'text', responsable_id: 'text', client_id: 'text', notes: 'text', created_at: 'text' } },
   cible_actions: { cols: { id: 'text', cible_id: 'text', type: 'text', titre: 'text', echeance: 'text', assigne_a: 'text', fait: 'bool', fait_le: 'text', resultat: 'text', created_at: 'text' } },
+  rendezvous: { cols: { id: 'text', titre: 'text', type: 'text', date: 'text', heure: 'text', duree: 'num', lieu: 'text', visio: 'text', client_id: 'text', cible_id: 'text', participants: 'json', rappel: 'num', rappel_le: 'text', statut: 'text', notes: 'text', compte_rendu: 'text', created_by: 'text', created_at: 'text' } },
   objectifs: { gerantOnly: true, cols: { id: 'text', annee: 'num', periode: 'text', numero: 'num', indicateur: 'text', cible: 'num' } },
 }
 // Jointures autorisées : table embarquée -> colonne de clé étrangère
@@ -29,6 +30,7 @@ const EMBEDS: Record<string, Record<string, string>> = {
   factures: { clients: 'client_id' },
   affectations: { evenements: 'evenement_id', profiles: 'profile_id' },
   cible_actions: { cibles: 'cible_id' },
+  rendezvous: { clients: 'client_id', cibles: 'cible_id' },
 }
 const OPS: Record<string, string> = { eq: '=', neq: '!=', gt: '>', gte: '>=', lt: '<', lte: '<=' }
 
@@ -140,7 +142,7 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
     for (const v of list) {
       const row: Record<string, unknown> = { ...v }
       if (!row.id) row.id = crypto.randomUUID()
-      if (b.table === 'clients' && !row.created_by) row.created_by = user.id
+      if ((b.table === 'clients' || b.table === 'rendezvous') && !row.created_by) row.created_by = user.id
       const keys = Object.keys(row).filter((k) => row[k] !== undefined).map((k) => checkCol(def, k))
       let sql = `INSERT INTO ${b.table} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`
       if (b.op === 'upsert') {
@@ -152,6 +154,7 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
       out.push({ id: row.id })
     }
     await env.DB.batch(stmts)
+    if (b.table === 'rendezvous' && b.op === 'insert') for (const o of out) attributions.push({ table: 'rendezvous', id: String(o.id), assigne_a: '' })
     if ((b.table === 'taches' || b.table === 'cible_actions') && b.op === 'insert') {
       list.forEach((v, i) => { if (v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: String(out[i].id), assigne_a: String(v.assigne_a) }) })
     }

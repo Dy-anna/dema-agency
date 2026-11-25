@@ -67,6 +67,7 @@ export default function ClientDetail() {
             <span className={'badge ' + (c.statut_commercial === 'client' ? 'green' : c.statut_commercial === 'perdu' ? 'grey' : 'amber')} style={{ fontSize: 13, padding: '6px 12px' }}>
               {c.statut_commercial === 'client' ? 'Client' : c.statut_commercial === 'perdu' ? 'Perdu' : 'Prospect'}
             </span>
+            <Link className="btn" to={`/rendez-vous?client=${c.id}`}>📅 Rendez-vous</Link>
             {!edit && <button className="btn" type="button" onClick={() => setEdit(true)}>Modifier</button>}
           </div>
         </div>

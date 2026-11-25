@@ -22,6 +22,7 @@ import FeuilleDeRoute from './pages/FeuilleDeRoute'
 import Contrats from './pages/Contrats'
 import Chasse from './pages/Chasse'
 import Notifications from './pages/Notifications'
+import RendezVous from './pages/RendezVous'
 import CibleEdit from './pages/CibleEdit'
 import ContratEdit from './pages/ContratEdit'
 import ContratPDF from './pages/ContratPDF'
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="factures" element={<GerantOnly><Factures /></GerantOnly>} />
         <Route path="planning" element={<Planning />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="rendez-vous" element={<RendezVous />} />
         <Route path="chasse" element={<Chasse />} />
         <Route path="chasse/:id" element={<CibleEdit />} />
         <Route path="contrats" element={<GerantOnly><Contrats /></GerantOnly>} />

@@ -120,6 +120,7 @@ export default function CibleEdit() {
         </div>
         {!nouveau && (
           <div className="row">
+            <Link className="btn" to={`/rendez-vous?cible=${id}`}>📅 Prendre un RDV</Link>
             {c.statut !== 'pas_interesse' && <button className="btn primary" type="button" onClick={convertir}>{c.client_id ? 'Ouvrir la fiche prospect' : 'Transformer en prospect →'}</button>}
           </div>
         )}
