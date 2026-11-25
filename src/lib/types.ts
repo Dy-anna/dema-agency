@@ -57,6 +57,7 @@ export interface Tache {
   fait: boolean
   assigne_a: string | null
   ordre: number
+  echeance?: string | null
 }
 
 export interface Paiement {

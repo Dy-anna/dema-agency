@@ -39,6 +39,8 @@ const SCHEMA = [
 // Colonnes ajoutées après coup : ignorées si elles existent déjà
 const ALTERS = [
   `ALTER TABLE clients ADD COLUMN details TEXT NOT NULL DEFAULT '{}'`,
+  `ALTER TABLE journal ADD COLUMN destinataire_id TEXT`,
+  `ALTER TABLE taches ADD COLUMN echeance TEXT`,
 ]
 
 let ready: Promise<void> | null = null

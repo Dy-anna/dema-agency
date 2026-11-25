@@ -11,8 +11,10 @@ import type { Client, Facture, Paiement, Profile, Projet, Tache } from '../lib/t
 
 export default function ProjetDetail() {
   const { id } = useParams()
-  const { isGerant } = useAuth()
+  const { isGerant, profile } = useAuth()
   const [nouvelleTache, setNouvelleTache] = useState('')
+  const [pourQui, setPourQui] = useState('')
+  const [pourQuand, setPourQuand] = useState('')
   const [msg, setMsg] = useState('')
 
   const { data, error, reload, setData } = useLoad(async () => {
@@ -50,8 +52,10 @@ export default function ProjetDetail() {
   }
   const ajouterTache = async () => {
     if (!nouvelleTache.trim()) return
-    await db.from('taches').insert({ projet_id: projet.id, groupe: 'Autres', titre: nouvelleTache.trim(), ordre: taches.length })
-    setNouvelleTache(''); reload()
+    await db.from('taches').insert({ projet_id: projet.id, groupe: 'Autres', titre: nouvelleTache.trim(), ordre: taches.length, assigne_a: pourQui || null, echeance: pourQuand || null })
+    const qui = equipe.find((m) => m.id === pourQui)
+    setMsg(qui && qui.id !== profile?.id ? `Tâche ajoutée : ${qui.nom} est prévenu(e) par notification.` : '')
+    setNouvelleTache(''); setPourQuand(''); reload()
   }
   const majPaiement = async (p: Paiement, patch: Partial<Paiement>) => {
     const { error } = await db.from('paiements').update(patch).eq('id', p.id)
@@ -121,7 +125,14 @@ export default function ProjetDetail() {
                 <div className="checkline" key={t.id}>
                   <label>
                     <input type="checkbox" checked={t.fait} onChange={() => majTache(t, { fait: !t.fait })} />
-                    <span className={t.fait ? 'done' : ''}>{t.titre}</span>
+                    <span className="stack" style={{ gap: 0, minWidth: 0 }}>
+                      <span className={t.fait ? 'done' : ''}>{t.titre}</span>
+                      {t.echeance && !t.fait && (
+                        <span className="small" style={{ color: t.echeance < isoDate(new Date()) ? 'var(--red)' : 'var(--muted)' }}>
+                          {t.echeance < isoDate(new Date()) ? 'En retard · ' : 'Pour '}{dateFr(t.echeance, { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </span>
                   </label>
                   <select aria-label={`Assigner ${t.titre}`} value={t.assigne_a ?? ''} onChange={(e) => majTache(t, { assigne_a: e.target.value || null })}
                     style={!t.assigne_a ? { background: 'var(--amber-soft)', color: 'var(--amber-ink)', fontWeight: 600 } : undefined}>
@@ -136,6 +147,11 @@ export default function ProjetDetail() {
             <div className="row" style={{ paddingTop: 8 }}>
               <input className="input" style={{ flex: 1, minWidth: 200 }} placeholder="Nouvelle tâche…" aria-label="Nouvelle tâche" value={nouvelleTache}
                 onChange={(e) => setNouvelleTache(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ajouterTache() }} />
+              <select className="input" aria-label="Pour qui" value={pourQui} onChange={(e) => setPourQui(e.target.value)}>
+                <option value="">Pour qui ?</option>
+                {equipe.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}
+              </select>
+              <input className="input" type="date" aria-label="Pour quand" title="Pour quand (facultatif)" value={pourQuand} onChange={(e) => setPourQuand(e.target.value)} />
               <button className="btn" type="button" onClick={ajouterTache}>Ajouter</button>
             </div>
           )}

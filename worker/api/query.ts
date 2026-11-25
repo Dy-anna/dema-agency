@@ -1,7 +1,7 @@
 // API de données générique et sécurisée : tables et colonnes en liste blanche,
 // requêtes paramétrées, droits par rôle (finance réservée aux gérants).
 import { fail, getUser, json, type Env, type User } from '../_lib/auth'
-import { notifierCalendrier, type ChangementCalendrier, type EvtNotif } from './notifications'
+import { notifierAttributions, notifierCalendrier, type Attribution, type ChangementCalendrier, type EvtNotif } from './notifications'
 
 type ColType = 'text' | 'num' | 'bool' | 'json'
 interface TableDef { cols: Record<string, ColType>; gerantOnly?: boolean; readOnly?: boolean }
@@ -11,7 +11,7 @@ const T: Record<string, TableDef> = {
   clients: { cols: { id: 'text', type_prestation: 'text', nom: 'text', contact: 'text', telephone: 'text', email: 'text', adresse: 'text', date_evenement: 'text', statut_commercial: 'text', rdv_effectue_le: 'text', notes: 'text', details: 'json', created_by: 'text', created_at: 'text' } },
   devis: { gerantOnly: true, cols: { id: 'text', client_id: 'text', numero: 'text', statut: 'text', lignes: 'json', montant: 'num', date_envoi: 'text', date_signature: 'text', created_at: 'text' } },
   projets: { cols: { id: 'text', client_id: 'text', devis_id: 'text', titre: 'text', type_prestation: 'text', date_evenement: 'text', statut: 'text', created_at: 'text' } },
-  taches: { cols: { id: 'text', projet_id: 'text', groupe: 'text', titre: 'text', fait: 'bool', assigne_a: 'text', ordre: 'num', created_at: 'text' } },
+  taches: { cols: { id: 'text', projet_id: 'text', groupe: 'text', titre: 'text', fait: 'bool', assigne_a: 'text', ordre: 'num', echeance: 'text', created_at: 'text' } },
   paiements: { gerantOnly: true, cols: { id: 'text', projet_id: 'text', libelle: 'text', type: 'text', montant: 'num', echeance: 'text', recu: 'bool', recu_le: 'text', created_at: 'text' } },
   evenements: { cols: { id: 'text', titre: 'text', date: 'text', type_prestation: 'text', statut: 'text', client_id: 'text', projet_id: 'text', created_at: 'text' } },
   parametres: { gerantOnly: true, cols: { id: 'text', valeur: 'json' } },
@@ -92,7 +92,7 @@ function cols(def: TableDef, list?: string[]) {
   return list.map((c) => checkCol(def, c))
 }
 
-async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] = []) {
+async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] = [], attributions: Attribution[] = []) {
   const def = T[b.table]
   if (!def) throw new Bad('Table inconnue')
   if (def.gerantOnly && user.role !== 'gerant') throw new Bad('Réservé aux gérants', 403)
@@ -152,6 +152,9 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
       out.push({ id: row.id })
     }
     await env.DB.batch(stmts)
+    if ((b.table === 'taches' || b.table === 'cible_actions') && b.op === 'insert') {
+      list.forEach((v, i) => { if (v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: String(out[i].id), assigne_a: String(v.assigne_a) }) })
+    }
     if (b.table === 'evenements' && b.op === 'insert') {
       for (const e of await lireEvts(env, out.map((o) => o.id as string))) suivi.push({ type: 'ajout', evt: e })
     }
@@ -170,8 +173,13 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
     if (!keys.length) return { data: null }
     const w = where(def, b.filters)
     const avant = b.table === 'evenements' ? await lireEvtsWhere(env, w) : []
+    // Tâche (ré)attribuée à quelqu'un : on note qui l'avait avant pour ne prévenir que le nouveau
+    const avantAssign = (b.table === 'taches' || b.table === 'cible_actions') && v.assigne_a
+      ? ((await env.DB.prepare(`SELECT id, assigne_a FROM ${b.table}${w.sql} LIMIT 50`).bind(...w.binds).all<{ id: string; assigne_a: string | null }>()).results ?? [])
+      : []
     await env.DB.prepare(`UPDATE ${b.table} SET ${keys.map((k) => `${k} = ?`).join(', ')}${w.sql}`)
       .bind(...keys.map((k) => toDb(def.cols[k], v[k])), ...w.binds).run()
+    for (const x of avantAssign) if (x.assigne_a !== v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: x.id, assigne_a: String(v.assigne_a) })
     if (avant.length) {
       for (const e of await lireEvts(env, avant.map((x) => x.id))) {
         const a = avant.find((x) => x.id === e.id)!
@@ -212,7 +220,9 @@ export async function handleQuery(request: Request, env: Env, ctx: ExecutionCont
   try {
     const body = (await request.json()) as Body
     const suivi: ChangementCalendrier[] = []
-    const res = await run(env, user, body, suivi)
+    const attributions: Attribution[] = []
+    const res = await run(env, user, body, suivi, attributions)
+    if (attributions.length) ctx.waitUntil(notifierAttributions(env, user, attributions).catch((e) => console.error('notif tâche', e)))
     // Notifie l'équipe des changements du calendrier sans faire attendre la réponse
     if (suivi.length) ctx.waitUntil(notifierCalendrier(env, user, suivi).catch((e) => console.error('notif calendrier', e)))
     return json(res)

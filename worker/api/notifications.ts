@@ -157,6 +157,17 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
   const taches = await all<{ n: number; projet_id: string; titre: string; date: string | null }>(env,
     `SELECT COUNT(*) AS n, t.projet_id, p.titre, p.date_evenement AS date FROM taches t JOIN projets p ON p.id = t.projet_id
      WHERE t.fait = 0 AND t.assigne_a = ? AND p.statut != 'livre' GROUP BY t.projet_id`, user.id)
+  const tachesDues = await all<{ id: string; titre: string; echeance: string; projet_id: string; projet: string }>(env,
+    `SELECT t.id, t.titre, t.echeance, t.projet_id, p.titre AS projet FROM taches t JOIN projets p ON p.id = t.projet_id
+     WHERE t.fait = 0 AND t.assigne_a = ? AND t.echeance IS NOT NULL AND t.echeance <= ? ORDER BY t.echeance`, user.id, plus(today, 1))
+  for (const t of tachesDues) {
+    const n = ecart(today, t.echeance)
+    out.push({
+      cle: `tache-due:${t.id}:${n < 0 ? 'retard' : n === 0 ? 'jour' : 'veille'}`, niveau: n <= 0 ? 'urgent' : 'important', categorie: 'tache',
+      titre: `${n < 0 ? 'Tâche en retard' : n === 0 ? 'Tâche pour aujourd’hui' : 'Tâche pour demain'} · ${t.titre}`,
+      texte: `${t.projet}${n < 0 ? ` · prévue ${dateCourte(t.echeance)}` : ''}`, lien: `/projets/${t.projet_id}`, date: t.echeance, push: true,
+    })
+  }
   for (const t of taches) {
     out.push({
       cle: `taches:${t.projet_id}:${t.n}`, niveau: 'info', categorie: 'tache', titre: `${t.n} tâche${t.n > 1 ? 's' : ''} à faire · ${t.titre}`,
@@ -182,12 +193,14 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
   // 10. Changements du calendrier faits par les autres (3 derniers jours)
   const journal = await all<{ id: string; type: string; titre: string; texte: string; lien: string; created_at: string; date: string | null }>(env,
     `SELECT j.id, j.type, j.titre, j.texte, j.lien, j.created_at, e.date FROM journal j LEFT JOIN evenements e ON e.id = j.evenement_id
-     WHERE j.created_at >= ? AND COALESCE(j.auteur_id, '') != ? ORDER BY j.created_at DESC LIMIT 30`,
-    new Date(Date.now() - 3 * 86400000).toISOString(), user.id)
+     WHERE j.created_at >= ? AND COALESCE(j.auteur_id, '') != ? AND (j.destinataire_id IS NULL OR j.destinataire_id = ?)
+       AND NOT (j.type = 'attribution' AND EXISTS (SELECT 1 FROM taches t WHERE t.id = j.evenement_id AND t.fait = 1))
+     ORDER BY j.created_at DESC LIMIT 30`,
+    new Date(Date.now() - 7 * 86400000).toISOString(), user.id, user.id)
   for (const j of journal) {
     out.push({
-      cle: `journal:${j.id}`, niveau: j.type === 'annule' || j.type === 'deplace' || j.type === 'supprime' ? 'important' : 'info',
-      categorie: 'tournage', titre: j.titre, texte: j.texte, lien: j.lien, date: j.date, push: false,
+      cle: `journal:${j.id}`, niveau: j.type === 'attribution' ? 'important' : j.type === 'annule' || j.type === 'deplace' || j.type === 'supprime' ? 'important' : 'info',
+      categorie: j.type === 'attribution' ? 'tache' : 'tournage', titre: j.titre, texte: j.texte, lien: j.lien, date: j.date, push: false,
     })
   }
 
@@ -281,6 +294,43 @@ export async function notifierCalendrier(env: Env, auteur: User, changements: Ch
   const users = [...new Set(abos.map((a) => a.user_id))]
   if (users.length) await env.DB.batch(users.flatMap((u) => entrees.map((j) => env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(u, `journal:${j.id}`))))
   await env.DB.prepare('DELETE FROM journal WHERE created_at < ?').bind(new Date(Date.now() - 60 * 86400000).toISOString()).run()
+}
+
+// ───────── Tâche attribuée : notification personnelle immédiate ─────────
+export interface Attribution { table: 'taches' | 'cible_actions'; id: string; assigne_a: string }
+
+export async function notifierAttributions(env: Env, auteur: User, liste: Attribution[]) {
+  const prenom = auteur.nom?.split(' ')[0] || auteur.email
+  const entrees: { id: string; ref: string; dest: string; titre: string; texte: string; lien: string }[] = []
+  for (const a of liste.slice(0, 30)) {
+    if (a.assigne_a === auteur.id) continue
+    if (a.table === 'taches') {
+      const t = await env.DB.prepare(`SELECT t.titre, t.echeance, t.projet_id, p.titre AS projet, p.date_evenement AS date FROM taches t JOIN projets p ON p.id = t.projet_id WHERE t.id = ?`)
+        .bind(a.id).first<{ titre: string; echeance: string | null; projet_id: string; projet: string; date: string | null }>()
+      if (!t) continue
+      entrees.push({ id: crypto.randomUUID(), ref: a.id, dest: a.assigne_a, titre: `📋 Nouvelle tâche pour toi · ${t.titre}`,
+        texte: `${t.projet}${t.date ? ` (${dateCourte(t.date)})` : ''}${t.echeance ? ` · à faire pour ${dateCourte(t.echeance)}` : ''} — de ${prenom}`, lien: `/projets/${t.projet_id}` })
+    } else {
+      const t = await env.DB.prepare(`SELECT a.titre, a.echeance, a.cible_id, c.nom FROM cible_actions a JOIN cibles c ON c.id = a.cible_id WHERE a.id = ?`)
+        .bind(a.id).first<{ titre: string; echeance: string | null; cible_id: string; nom: string }>()
+      if (!t) continue
+      entrees.push({ id: crypto.randomUUID(), ref: a.id, dest: a.assigne_a, titre: `🎯 Action de prospection pour toi · ${t.nom}`,
+        texte: `${t.titre}${t.echeance ? ` · pour ${dateCourte(t.echeance)}` : ''} — de ${prenom}`, lien: `/chasse/${t.cible_id}` })
+    }
+  }
+  if (!entrees.length) return
+  await env.DB.batch(entrees.map((j) => env.DB.prepare(
+    `INSERT INTO journal (id, type, evenement_id, auteur_id, auteur_nom, titre, texte, lien, destinataire_id) VALUES (?, 'attribution', ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(j.id, j.ref, auteur.id, auteur.nom, j.titre, j.texte, j.lien, j.dest)))
+  for (const dest of [...new Set(entrees.map((e) => e.dest))]) {
+    const siennes = entrees.filter((e) => e.dest === dest)
+    const abos = await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', dest)
+    const msgs: MessagePush[] = siennes.length <= 2
+      ? siennes.map((j) => ({ title: j.titre, body: j.texte, url: j.lien, tag: 'tache' + j.id.slice(0, 8) }))
+      : [{ title: `📋 ${siennes.length} nouvelles tâches pour toi`, body: siennes.slice(0, 4).map((j) => '• ' + j.titre.split(' · ').slice(1).join(' · ')).join('\n') + `\n— de ${prenom}`, url: siennes[0].lien, tag: 'taches' }]
+    for (const ab of abos) for (const m of msgs) await envoyer(env, ab, m)
+    if (abos.length) await env.DB.batch(siennes.map((j) => env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(dest, `journal:${j.id}`)))
+  }
 }
 
 // ───────── API /api/notifications/* ─────────
