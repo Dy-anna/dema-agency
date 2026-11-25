@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  activerPush, chargerAlertes, desactiverPush, diagnostic, envoyerTest, etatPush, marquerLues, toutMarquerLu, type Alerte,
+  activerPush, chargerAlertes, desactiverPush, diagnostic, navigateurIOS, envoyerTest, etatPush, marquerLues, toutMarquerLu, type Alerte,
 } from '../lib/notifications'
 
 export const ICONE_ALERTE: Record<Alerte['categorie'], string> = {
@@ -96,9 +96,11 @@ export default function Notifications() {
           <>
             <h2>📲 Sur iPhone : installe d’abord l’app</h2>
             <p className="muted" style={{ margin: 0 }}>Apple n’autorise les notifications que dans l’app ajoutée à l’écran d’accueil. Ça prend 30 secondes :</p>
-            <Etape n={1}>En bas de Safari, touche <strong>Partager</strong> <IconePartager /></Etape>
+            {navigateurIOS() === 'Safari'
+              ? <Etape n={1}>Touche le bouton <strong>Partager</strong> <IconePartager /> de Safari (en bas, ou à côté de l’adresse)</Etape>
+              : <Etape n={1}>Tu es dans <strong>{navigateurIOS()}</strong> : touche l’icône <strong>Partager</strong> <IconePartager /> à droite de la barre d’adresse, en haut</Etape>}
             <Etape n={2}>Fais défiler et touche <strong>« Sur l’écran d’accueil »</strong>, puis <strong>Ajouter</strong></Etape>
-            <Etape n={3}>Ferme Safari et ouvre <strong>DEMA</strong> depuis la nouvelle icône</Etape>
+            <Etape n={3}>Ferme {navigateurIOS()} et ouvre <strong>DEMA</strong> depuis la nouvelle icône sur ton écran d’accueil</Etape>
             <Etape n={4}>Connecte-toi et reviens ici : le bouton <strong>« Activer les notifications »</strong> sera là</Etape>
           </>
         )}

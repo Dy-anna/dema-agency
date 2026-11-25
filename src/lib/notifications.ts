@@ -29,6 +29,15 @@ export const pushSupporte = () => 'serviceWorker' in navigator && 'PushManager' 
 const estIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const estInstalle = () => window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
 
+/** Navigateur utilisé sur iPhone (Chrome, Firefox, Edge ont leur bouton Partager ailleurs) */
+export const navigateurIOS = () => {
+  const ua = navigator.userAgent
+  if (/CriOS/.test(ua)) return 'Chrome'
+  if (/FxiOS/.test(ua)) return 'Firefox'
+  if (/EdgiOS/.test(ua)) return 'Edge'
+  return 'Safari'
+}
+
 /** iPhone : les notifications ne marchent que si le site est ajouté à l'écran d'accueil */
 export const doitInstallerSurIOS = () => estIOS() && !estInstalle()
 
@@ -63,7 +72,7 @@ export function diagnostic() {
   const ios = navigator.userAgent.match(/OS (\d+)_(\d+)/)
   return [
     ios ? `iOS ${ios[1]}.${ios[2]}` : null,
-    estInstalle() ? 'app installée' : 'navigateur',
+    estInstalle() ? 'app installée' : (ios ? navigateurIOS() : 'navigateur'),
     'Notification' in window ? 'notifications OK' : 'pas de notifications',
     'PushManager' in window ? 'push OK' : 'pas de push',
   ].filter(Boolean).join(' · ')
