@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { nomRole } from '../lib/format'
+import { enregistrerServiceWorker } from '../lib/notifications'
+import Cloche from './Cloche'
 
 const lien = ({ isActive }: { isActive: boolean }) => 'nav-link' + (isActive ? ' active' : '')
 const onglet = ({ isActive }: { isActive: boolean }) => 'tab' + (isActive ? ' active' : '')
@@ -42,6 +44,7 @@ export default function Layout() {
   const nom = profile?.nom || profile?.email || ''
   const initiales = nom.split(/[\s.@_-]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
 
+  useEffect(() => { enregistrerServiceWorker() }, [])
   useEffect(() => { setMenuOuvert(false); window.scrollTo(0, 0) }, [pathname])
   useEffect(() => {
     document.body.style.overflow = menuOuvert ? 'hidden' : ''
@@ -67,6 +70,8 @@ export default function Layout() {
         </div>
         <button type="button" className="topbar-avatar" aria-label="Ouvrir le menu" onClick={() => setMenuOuvert(true)}>{initiales || '?'}</button>
       </header>
+
+      <Cloche />
 
       {menuOuvert && <div className="drawer-back" onClick={() => setMenuOuvert(false)} />}
       <nav className={'sidebar' + (menuOuvert ? ' open' : '')} aria-label="Navigation principale">

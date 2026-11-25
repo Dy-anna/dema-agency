@@ -19,5 +19,9 @@ database_name = "dema-agency-eu"
 database_id = "0669373a-5e64-49e0-a64a-ce9124511a74"
 migrations_dir = "migrations"
 
+# Notifications push : 8h et 18h (heure de Paris en hiver)
+[triggers]
+crons = ["0 7 * * *", "0 17 * * *"]
+
 [observability]
 enabled = true
