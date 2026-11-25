@@ -24,7 +24,6 @@ const ecart = (a: string, b: string) => Math.round((Date.parse(b + 'T12:00:00Z')
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']
 const JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.']
 const dateCourte = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); return `${JOURS[d.getUTCDay()]} ${d.getUTCDate()} ${MOIS[d.getUTCMonth()]}` }
-const euro = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 const quand = (today: string, date: string) => {
   const n = ecart(today, date)
   return n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : n < 7 ? `dans ${n} jours (${dateCourte(date)})` : dateCourte(date)
@@ -51,13 +50,12 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
     const miens = affDe(e.id).filter((a) => a.profile_id === user.id)
     if (!gerant && miens.length === 0) continue
     const n = ecart(today, e.date)
-    const equipe = affDe(e.id).length
-    const moi = miens[0]
+        const moi = miens[0]
     out.push({
       cle: `tournage:${e.id}:${n === 0 ? 'jour' : 'veille'}`, niveau: 'urgent', categorie: 'tournage',
       titre: `${n === 0 ? 'Tournage aujourd’hui' : 'Tournage demain'} · ${e.titre}`,
       texte: moi ? `Tu es ${moi.poste.toLowerCase()}${moi.horaires ? ` · ${moi.horaires}` : ''}. Pense à la feuille de route.`
-        : `${e.statut === 'confirme' ? 'Confirmé' : 'Encore prévisionnel !'} · ${equipe ? `${equipe} personne${equipe > 1 ? 's' : ''} dans l’équipe` : 'aucune équipe affectée'}`,
+        : 'Pense à la feuille de route.',
       lien: e.client_id ? `/clients/${e.client_id}` : '/calendrier', date: e.date, push: true,
     })
   }
@@ -71,7 +69,7 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
       out.push({
         cle: `equipe:${e.id}`, niveau: ecart(today, e.date) <= 3 ? 'urgent' : 'important', categorie: 'equipe',
         titre: `Personne d’affecté · ${e.titre}`, texte: `Tournage ${quand(today, e.date)} : choisis l’équipe dans le planning.`,
-        lien: '/planning', date: e.date, push: true,
+        lien: '/planning', date: e.date, push: false,
       })
     }
     // 3. Fiches sans coordonnées avec une date dans les 30 jours
@@ -93,33 +91,10 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
       out.push({
         cle: `previsionnel:${e.id}`, niveau: ecart(today, e.date) <= 3 ? 'urgent' : 'important', categorie: 'commercial',
         titre: `À confirmer · ${e.titre}`, texte: `La date est ${quand(today, e.date)} et elle n’est pas encore confirmée.`,
-        lien: e.client_id ? `/clients/${e.client_id}` : '/calendrier', date: e.date, push: true,
+        lien: e.client_id ? `/clients/${e.client_id}` : '/calendrier', date: e.date, push: false,
       })
     }
-    // 5. Impayés et échéances proches
-    const paiements = await all<{ id: string; libelle: string; montant: number; echeance: string; projet_id: string; titre: string }>(env,
-      `SELECT p.id, p.libelle, p.montant, p.echeance, p.projet_id, pr.titre FROM paiements p JOIN projets pr ON pr.id = p.projet_id
-       WHERE p.recu = 0 AND p.echeance IS NOT NULL AND p.echeance <= ? ORDER BY p.echeance`, plus(today, 3))
-    for (const p of paiements) {
-      const retard = ecart(p.echeance, today)
-      out.push(retard > 0
-        ? { cle: `impaye:${p.id}`, niveau: 'urgent', categorie: 'finance', titre: `Impayé · ${p.titre} · ${euro(p.montant)}`,
-            texte: `${p.libelle} attendu depuis ${retard} jour${retard > 1 ? 's' : ''} (${dateCourte(p.echeance)}). Relance le client.`,
-            lien: `/projets/${p.projet_id}`, date: p.echeance, push: true }
-        : { cle: `echeance:${p.id}`, niveau: 'important', categorie: 'finance', titre: `Paiement attendu ${quand(today, p.echeance)} · ${euro(p.montant)}`,
-            texte: `${p.libelle} · ${p.titre}`, lien: `/projets/${p.projet_id}`, date: p.echeance, push: true })
-    }
-    // 6. Devis à relancer (envoyés depuis 5 jours ou plus)
-    const devis = await all<{ id: string; montant: number; date_envoi: string; nom: string }>(env,
-      `SELECT d.id, d.montant, d.date_envoi, c.nom FROM devis d JOIN clients c ON c.id = d.client_id
-       WHERE d.statut IN ('envoye','negociation') AND d.date_envoi IS NOT NULL AND substr(d.date_envoi,1,10) <= ?`, plus(today, -5))
-    for (const d of devis) {
-      const n = ecart(d.date_envoi.slice(0, 10), today)
-      out.push({
-        cle: `relance:${d.id}`, niveau: 'important', categorie: 'commercial', titre: `Relance · ${d.nom} · ${euro(d.montant)}`,
-        texte: `Devis envoyé il y a ${n} jours, sans réponse.`, lien: `/devis/${d.id}`, date: null, push: true,
-      })
-    }
+    // (Pas d'alertes d'argent : impayés, échéances et devis restent visibles uniquement dans le tableau de bord.)
     // 7. Contrats : personnes au planning sans contrat signé, contrats qui se terminent
     const contrats = await all<{ id: string; nom: string; profile_id: string | null; statut: string; date_debut: string | null; date_fin: string | null }>(env,
       `SELECT id, nom, profile_id, statut, date_debut, date_fin FROM contrats WHERE statut != 'annule'`)
@@ -142,13 +117,13 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
       out.push({
         cle: `contrat-manquant:${k}:${e.id}`, niveau: ecart(today, e.date) <= 3 ? 'urgent' : 'important', categorie: 'contrat',
         titre: `Contrat à faire signer · ${nom}`, texte: `${nom} tourne ${quand(today, e.date)} (${e.titre}) sans contrat signé.`,
-        lien: existant ? `/contrats/${existant.id}` : `/contrats/nouveau?nom=${encodeURIComponent(nom)}`, date: e.date, push: true,
+        lien: existant ? `/contrats/${existant.id}` : `/contrats/nouveau?nom=${encodeURIComponent(nom)}`, date: e.date, push: false,
       })
     }
     for (const c of contrats.filter((x) => x.statut === 'signe' && x.date_fin && x.date_fin >= today && x.date_fin <= plus(today, 7))) {
       out.push({
         cle: `contrat-fin:${c.id}`, niveau: 'info', categorie: 'contrat', titre: `Fin de contrat · ${c.nom}`,
-        texte: `Se termine ${quand(today, c.date_fin!)}. À prolonger ou clôturer.`, lien: `/contrats/${c.id}`, date: c.date_fin, push: true,
+        texte: `Se termine ${quand(today, c.date_fin!)}. À prolonger ou clôturer.`, lien: `/contrats/${c.id}`, date: c.date_fin, push: false,
       })
     }
   }
@@ -314,16 +289,13 @@ export async function notifierCalendrier(env: Env, auteur: User, changements: Ch
 }
 
 // ───────── Rendez-vous : qui est concerné, rappel juste avant ─────────
-function concerne(r: { participants: string; created_by: string | null }, userId: string) {
-  let p: string[] = []
-  try { p = JSON.parse(r.participants || '[]') } catch { /* vide */ }
-  return p.includes(userId) || r.created_by === userId
-}
+/** Ceux qui font le rendez-vous (les participants cochés ; à défaut, la personne qui l'a créé) */
 function concernes(r: { participants: string; created_by: string | null }) {
   let p: string[] = []
   try { p = JSON.parse(r.participants || '[]') } catch { /* vide */ }
-  return [...new Set([...p, ...(r.created_by ? [r.created_by] : [])])]
+  return p.length ? [...new Set(p)] : r.created_by ? [r.created_by] : []
 }
+const concerne = (r: { participants: string; created_by: string | null }, userId: string) => concernes(r).includes(userId)
 export const minutesParis = (d = new Date()) => {
   const parts = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d)
   return Number(parts.find((x) => x.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((x) => x.type === 'minute')?.value ?? 0)
@@ -389,19 +361,19 @@ export async function notifierAttributions(env: Env, auteur: User, liste: Attrib
       if (!r) continue
       const quandRdv = `${dateCourte(r.date)}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''}`
       const ou = r.lieu ? ` · ${r.lieu}` : r.visio ? ' · en visio' : ''
-      const tous = concernes(r).filter((u) => u !== auteur.id)
+      const tous = concernes(r)
       const pousser = (dest: string, titre: string, texte: string) =>
         entrees.push({ id: crypto.randomUUID(), ref: a.id, dest, titre, texte: `${texte} — de ${prenom}`, lien: `/rendez-vous?id=${a.id}` })
       if (!a.avant) {
         // Création : tous les participants
-        for (const dest of tous) pousser(dest, `📅 Nouveau rendez-vous · ${r.titre}`, `${quandRdv}${ou}`)
+        for (const dest of tous) pousser(dest, `📅 Rendez-vous ajouté · ${r.titre}`, `${quandRdv}${ou}`)
         continue
       }
       // Modification : nouveaux participants, report, annulation
       const avant = concernes({ participants: a.avant.participants, created_by: r.created_by })
-      const nouveaux = tous.filter((u) => !avant.includes(u))
+      const nouveaux = tous.filter((u) => !avant.includes(u) && u !== auteur.id)
       for (const dest of nouveaux) if (r.statut !== 'annule') pousser(dest, `📅 Tu es ajouté(e) à un rendez-vous · ${r.titre}`, `${quandRdv}${ou}`)
-      const anciens = tous.filter((u) => avant.includes(u))
+      const anciens = tous.filter((u) => avant.includes(u) && u !== auteur.id)
       if (r.statut === 'annule' && a.avant.statut !== 'annule') {
         for (const dest of anciens) pousser(dest, `❌ Rendez-vous annulé · ${r.titre}`, `Il était prévu ${quandRdv}`)
       } else if (r.statut === 'prevu' && (a.avant.date !== r.date || (a.avant.heure ?? '') !== (r.heure ?? ''))) {
@@ -489,10 +461,9 @@ export async function handleNotifications(request: Request, env: Env, action: st
   if (action === 'test' && request.method === 'POST') {
     const abos = await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', user.id)
     if (!abos.length) return fail('Aucun appareil abonné. Active d’abord les notifications sur ce téléphone.')
-    const alertes = (await calculerAlertes(env, user)).filter((a) => a.niveau !== 'info')
     const msg: MessagePush = {
       title: 'DEMA Agency · notifications activées ✅',
-      body: alertes.length ? `${alertes.length} alerte${alertes.length > 1 ? 's' : ''} en cours, dont : ${alertes[0].titre}` : 'Tu recevras ici les tournages, impayés, relances et contrats à signer.',
+      body: 'Tu recevras ici tes rendez-vous, tes tâches et les dates du calendrier.',
       url: '/notifications', tag: 'test',
     }
     let ok = 0

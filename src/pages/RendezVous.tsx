@@ -90,8 +90,8 @@ export default function RendezVous() {
       const c = data.clients.find((x) => x.id === payload.client_id)
       if (c && !c.rdv_effectue_le) await db.from('clients').update({ rdv_effectue_le: payload.date }).eq('id', c.id)
     }
-    const autres = payload.participants.filter((p) => p !== profile?.id).map(nomDe).filter(Boolean)
-    setMsg(!v.id && autres.length ? `Rendez-vous ajouté : ${autres.join(', ')} ${autres.length > 1 ? 'sont prévenus' : 'est prévenu(e)'} par notification.` : v.id ? 'Rendez-vous mis à jour.' : 'Rendez-vous ajouté.')
+    const qui = payload.participants.map((p) => (p === profile?.id ? 'toi' : nomDe(p))).filter(Boolean)
+    setMsg(!v.id && qui.length ? `Rendez-vous ajouté : notification envoyée à ${qui.join(' et ')}.` : v.id ? 'Rendez-vous mis à jour.' : 'Rendez-vous ajouté.')
     setDraft(null); reload()
   }
   const supprimer = async () => {

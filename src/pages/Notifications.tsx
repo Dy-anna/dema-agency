@@ -127,9 +127,10 @@ export default function Notifications() {
       {/* ───── Ce que tu reçois ───── */}
       <section className="card" style={{ gap: 8 }}>
         <h2>Ce que tu reçois</h2>
-        <span className="small"><strong>Tout de suite :</strong> une date ajoutée, confirmée, annulée ou déplacée au calendrier · une tâche, une action de prospection ou un rendez-vous où on t’ajoute.</span>
+        <span className="small"><strong>Tout de suite :</strong> un rendez-vous ajouté où tu es (même si c’est toi qui l’ajoutes), déplacé ou annulé · une tâche ou une action de prospection qu’on t’attribue · une date ajoutée, confirmée ou annulée au calendrier.</span>
         <span className="small"><strong>Rendez-vous :</strong> la veille à 18 h, le matin à 8 h, juste avant (15 min à 3 h) et à la date/heure que tu choisis.</span>
-        <span className="small"><strong>À 8 h et 18 h :</strong> tournages du jour et du lendemain · tâches à faire · impayés et relances · contrats à faire signer · actions de prospection du jour.</span>
+        <span className="small"><strong>À 8 h et 18 h :</strong> tournages du jour et du lendemain · tes tâches et actions de prospection du jour.</span>
+        <span className="small muted">🔒 Jamais sur le téléphone : l’argent (impayés, paiements, devis, montants) et le pilotage interne (contrats, dates à confirmer, équipe à affecter). Ces infos restent dans l’app.</span>
       </section>
 
       {/* ───── Liste ───── */}
