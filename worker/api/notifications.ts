@@ -138,7 +138,7 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
   for (const t of tachesDues) {
     const n = ecart(today, t.echeance)
     out.push({
-      cle: `tache-due:${t.id}:${n < 0 ? 'retard' : n === 0 ? 'jour' : 'veille'}`, niveau: n <= 0 ? 'urgent' : 'important', categorie: 'tache',
+      cle: `tache-due:${t.id}:${n < 0 ? 'retard:' + today : n === 0 ? 'jour' : 'veille'}`, niveau: n <= 0 ? 'urgent' : 'important', categorie: 'tache',
       titre: `${n < 0 ? 'Tâche en retard' : n === 0 ? 'Tâche pour aujourd’hui' : 'Tâche pour demain'} · ${t.titre}`,
       texte: `${t.projet}${n < 0 ? ` · prévue ${dateCourte(t.echeance)}` : ''}`, lien: `/projets/${t.projet_id}`, date: t.echeance, push: true,
     })
@@ -147,6 +147,31 @@ export async function calculerAlertes(env: Env, user: User, today = jourParis())
     out.push({
       cle: `taches:${t.projet_id}:${t.n}`, niveau: 'info', categorie: 'tache', titre: `${t.n} tâche${t.n > 1 ? 's' : ''} à faire · ${t.titre}`,
       texte: t.date ? `Projet du ${dateCourte(t.date)}` : 'Projet en cours', lien: `/projets/${t.projet_id}`, date: t.date, push: false,
+    })
+  }
+
+  // 8 bis. Tâches libres (données par un membre ou à soi-même) : rappels tant que ce n'est pas fait
+  const soir = minutesParis() >= 13 * 60
+  const todos = await all<{ id: string; titre: string; categorie: string; echeance: string | null; heure: string | null; cree_par: string | null; auteur: string | null }>(env,
+    `SELECT t.id, t.titre, t.categorie, t.echeance, t.heure, t.cree_par, p.nom AS auteur FROM todos t LEFT JOIN profiles p ON p.id = t.cree_par
+     WHERE t.fait = 0 AND t.assigne_a = ? ORDER BY t.echeance IS NULL, t.echeance, t.heure`, user.id)
+  for (const t of todos) {
+    const de = t.cree_par && t.cree_par !== user.id && t.auteur ? ` — de ${t.auteur.split(' ')[0]}` : ''
+    const ic = ICONE_CAT[t.categorie] ?? '📌'
+    if (!t.echeance) {
+      out.push({ cle: `todo:${t.id}`, niveau: 'info', categorie: 'tache', titre: `${ic} ${t.titre}`, texte: `Sans deadline${de}`, lien: '/taches', date: null, push: false })
+      continue
+    }
+    const n = ecart(today, t.echeance)
+    const h = t.heure ? ` à ${t.heure.replace(':', 'h')}` : ''
+    // Rappel : chaque matin dès 3 jours avant et chaque matin en retard ; le soir la veille et le jour J
+    const rappel = (n < 0 && !soir) || (n >= 0 && n <= 3 && !soir) || (n >= 0 && n <= 1 && soir)
+    out.push({
+      cle: rappel ? `todo:${t.id}:${today}:${soir ? 'soir' : 'matin'}` : `todo:${t.id}`,
+      niveau: n < 0 ? 'urgent' : n <= 1 ? 'important' : 'info', categorie: 'tache',
+      titre: `${n < 0 ? `⏰ En retard (${-n} j)` : n === 0 ? `Aujourd’hui${h}` : n === 1 ? `Demain${h}` : `Avant ${dateCourte(t.echeance)}`} · ${ic} ${t.titre}`,
+      texte: `${n < 0 ? `Deadline dépassée (${dateCourte(t.echeance)}${h})` : `Deadline : ${dateCourte(t.echeance)}${h}`}${de}`,
+      lien: '/taches', date: t.echeance, push: rappel,
     })
   }
 
@@ -307,6 +332,18 @@ const libelleDelai = (m: number) => (m >= 120 ? `${Math.round(m / 60)} h` : m >=
 export async function rappelsRendezVous(env: Env) {
   const today = jourParis()
   const maintenant = minutesParis()
+  // Tâches avec une heure limite aujourd'hui : rappel 1 h avant
+  const todosH = await all<{ id: string; titre: string; heure: string; assigne_a: string }>(env,
+    `SELECT id, titre, heure, assigne_a FROM todos WHERE fait = 0 AND echeance = ? AND heure IS NOT NULL AND assigne_a IS NOT NULL`, today)
+  for (const t of todosH) {
+    const reste = enMinutes(t.heure) - maintenant
+    if (reste > 67 || reste < -10) continue
+    const cle = `todo:${t.id}:heure`
+    if (await env.DB.prepare('SELECT 1 FROM push_envoyes WHERE user_id = ? AND cle = ?').bind(t.assigne_a, cle).first()) continue
+    for (const ab of await all<Abonnement>(env, 'SELECT * FROM push_abonnements WHERE user_id = ?', t.assigne_a))
+      await envoyer(env, ab, { title: `⏰ ${reste > 2 ? `Dans ${libelleDelai(reste)}` : 'C’est l’heure'} · ${t.titre}`, body: `Deadline à ${t.heure.replace(':', 'h')} — pas encore cochée.`, url: '/taches', tag: 'todo' + t.id.slice(0, 8) })
+    await env.DB.prepare('INSERT OR IGNORE INTO push_envoyes (user_id, cle) VALUES (?, ?)').bind(t.assigne_a, cle).run()
+  }
   const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   const instant = `${today}T${hm(maintenant)}`
   const ilYa = maintenant >= 45 ? `${today}T${hm(maintenant - 45)}` : `${today}T00:00`
@@ -347,14 +384,28 @@ export async function rappelsRendezVous(env: Env) {
   }
 }
 
+const ICONE_CAT: Record<string, string> = { tache: '📌', facture: '🧾', devis: '📝', note: '🗒️', appel: '📞', montage: '🎬' }
+
 // ───────── Tâche attribuée : notification personnelle immédiate ─────────
 export interface RdvAvant { id: string; date: string; heure: string | null; statut: string; participants: string }
-export interface Attribution { table: 'taches' | 'cible_actions' | 'rendezvous'; id: string; assigne_a: string; avant?: RdvAvant }
+export interface Attribution { table: 'taches' | 'cible_actions' | 'rendezvous' | 'todos'; id: string; assigne_a: string; avant?: RdvAvant; fait?: boolean }
 
 export async function notifierAttributions(env: Env, auteur: User, liste: Attribution[]) {
   const prenom = auteur.nom?.split(' ')[0] || auteur.email
   const entrees: { id: string; ref: string; dest: string; titre: string; texte: string; lien: string }[] = []
   for (const a of liste.slice(0, 30)) {
+    if (a.table === 'todos') {
+      const t = await env.DB.prepare(`SELECT titre, categorie, echeance, heure, assigne_a, cree_par FROM todos WHERE id = ?`)
+        .bind(a.id).first<{ titre: string; categorie: string; echeance: string | null; heure: string | null; assigne_a: string | null; cree_par: string | null }>()
+      if (!t) continue
+      if (a.fait) {
+        if (t.cree_par && t.cree_par !== auteur.id) entrees.push({ id: crypto.randomUUID(), ref: a.id, dest: t.cree_par, titre: `✅ Fait · ${t.titre}`, texte: `${prenom} a terminé la tâche que tu lui avais donnée.`, lien: '/taches' })
+      } else if (t.assigne_a && t.assigne_a !== auteur.id) {
+        const dl = t.echeance ? `À faire avant ${dateCourte(t.echeance)}${t.heure ? ` à ${t.heure.replace(':', 'h')}` : ''}` : 'Sans deadline'
+        entrees.push({ id: crypto.randomUUID(), ref: a.id, dest: t.assigne_a, titre: `${ICONE_CAT[t.categorie] ?? '📌'} Nouvelle tâche pour toi · ${t.titre}`, texte: `${dl} — de ${prenom}`, lien: '/taches' })
+      }
+      continue
+    }
     if (a.table === 'rendezvous') {
       const r = await env.DB.prepare('SELECT titre, date, heure, lieu, visio, participants, created_by, statut FROM rendezvous WHERE id = ?')
         .bind(a.id).first<{ titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; participants: string; created_by: string | null; statut: string }>()

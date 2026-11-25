@@ -34,6 +34,7 @@ const ICONES = {
   clients: 'M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M20 19v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.15a3.5 3.5 0 0 1 0 6.7',
   calendrier: 'M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5zM4 10h16M8.5 3v4M15.5 3v4',
   projets: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
+  taches: 'M4 12.5l4.5 4.5L20 6.5',
   menu: 'M4 7h16M4 12h16M4 17h16',
 }
 
@@ -59,7 +60,7 @@ export default function Layout() {
     return () => obs.disconnect()
   }, [])
 
-  const dansMenu = !['/', '/clients', '/calendrier', '/projets'].some((p) => p === '/' ? pathname === '/' : pathname.startsWith(p))
+  const dansMenu = !['/', '/clients', '/calendrier', '/taches'].some((p) => p === '/' ? pathname === '/' : pathname.startsWith(p))
 
   return (
     <div className="app">
@@ -93,7 +94,8 @@ export default function Layout() {
         </div>
         <div className="nav-group">
           <span className="nav-label">PRODUCTION</span>
-          <NavLink to="/projets" className={lien}>Projets &amp; tâches</NavLink>
+          <NavLink to="/taches" className={lien}>Tâches</NavLink>
+          <NavLink to="/projets" className={lien}>Projets</NavLink>
           <NavLink to="/calendrier" className={lien}>Calendrier</NavLink>
           <NavLink to="/planning" className={lien}>Planning équipe</NavLink>
           {isGerant && <NavLink to="/contrats" className={lien}>Contrats</NavLink>}
@@ -125,7 +127,7 @@ export default function Layout() {
         <NavLink to="/" end className={onglet}><Icone d={ICONES.accueil} /><span>Accueil</span></NavLink>
         <NavLink to="/clients" className={onglet}><Icone d={ICONES.clients} /><span>Clients</span></NavLink>
         <NavLink to="/calendrier" className={onglet}><Icone d={ICONES.calendrier} /><span>Calendrier</span></NavLink>
-        <NavLink to="/projets" className={onglet}><Icone d={ICONES.projets} /><span>Projets</span></NavLink>
+        <NavLink to="/taches" className={onglet}><Icone d={ICONES.taches} /><span>Tâches</span></NavLink>
         <button type="button" className={'tab' + (dansMenu ? ' active' : '')} onClick={() => setMenuOuvert(true)}><Icone d={ICONES.menu} /><span>Plus</span></button>
       </nav>
     </div>

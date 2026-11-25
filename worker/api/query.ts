@@ -21,6 +21,7 @@ const T: Record<string, TableDef> = {
   cibles: { cols: { id: 'text', nom: 'text', categorie: 'text', contact_nom: 'text', contact_role: 'text', telephone: 'text', email: 'text', reseau: 'text', site: 'text', type_prestation: 'text', priorite: 'text', potentiel: 'num', source: 'text', statut: 'text', responsable_id: 'text', client_id: 'text', notes: 'text', created_at: 'text' } },
   cible_actions: { cols: { id: 'text', cible_id: 'text', type: 'text', titre: 'text', echeance: 'text', assigne_a: 'text', fait: 'bool', fait_le: 'text', resultat: 'text', created_at: 'text' } },
   rendezvous: { cols: { id: 'text', titre: 'text', type: 'text', date: 'text', heure: 'text', duree: 'num', lieu: 'text', visio: 'text', client_id: 'text', cible_id: 'text', participants: 'json', rappel: 'num', rappel_le: 'text', statut: 'text', notes: 'text', compte_rendu: 'text', created_by: 'text', created_at: 'text' } },
+  todos: { cols: { id: 'text', titre: 'text', details: 'text', categorie: 'text', echeance: 'text', heure: 'text', assigne_a: 'text', cree_par: 'text', client_id: 'text', fait: 'bool', fait_le: 'text', created_at: 'text' } },
   objectifs: { gerantOnly: true, cols: { id: 'text', annee: 'num', periode: 'text', numero: 'num', indicateur: 'text', cible: 'num' } },
 }
 // Jointures autorisées : table embarquée -> colonne de clé étrangère
@@ -31,6 +32,7 @@ const EMBEDS: Record<string, Record<string, string>> = {
   affectations: { evenements: 'evenement_id', profiles: 'profile_id' },
   cible_actions: { cibles: 'cible_id' },
   rendezvous: { clients: 'client_id', cibles: 'cible_id' },
+  todos: { clients: 'client_id' },
 }
 const OPS: Record<string, string> = { eq: '=', neq: '!=', gt: '>', gte: '>=', lt: '<', lte: '<=' }
 
@@ -143,6 +145,7 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
       const row: Record<string, unknown> = { ...v }
       if (!row.id) row.id = crypto.randomUUID()
       if ((b.table === 'clients' || b.table === 'rendezvous') && !row.created_by) row.created_by = user.id
+      if (b.table === 'todos' && !row.cree_par) row.cree_par = user.id
       const keys = Object.keys(row).filter((k) => row[k] !== undefined).map((k) => checkCol(def, k))
       let sql = `INSERT INTO ${b.table} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`
       if (b.op === 'upsert') {
@@ -155,7 +158,7 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
     }
     await env.DB.batch(stmts)
     if (b.table === 'rendezvous' && b.op === 'insert') for (const o of out) attributions.push({ table: 'rendezvous', id: String(o.id), assigne_a: '' })
-    if ((b.table === 'taches' || b.table === 'cible_actions') && b.op === 'insert') {
+    if ((b.table === 'taches' || b.table === 'cible_actions' || b.table === 'todos') && b.op === 'insert') {
       list.forEach((v, i) => { if (v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: String(out[i].id), assigne_a: String(v.assigne_a) }) })
     }
     if (b.table === 'evenements' && b.op === 'insert') {
@@ -176,15 +179,20 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
     if (!keys.length) return { data: null }
     const w = where(def, b.filters)
     const avant = b.table === 'evenements' ? await lireEvtsWhere(env, w) : []
+    // Tâche libre qui passe à « faite » : on préviendra la personne qui l'avait donnée
+    const todosFaits = b.table === 'todos' && v.fait === true
+      ? ((await env.DB.prepare(`SELECT id FROM todos${w.sql}${w.sql ? ' AND' : ' WHERE'} fait = 0 LIMIT 50`).bind(...w.binds).all<{ id: string }>()).results ?? [])
+      : []
     const avantRdv = b.table === 'rendezvous'
       ? ((await env.DB.prepare(`SELECT id, date, heure, statut, participants FROM rendezvous${w.sql} LIMIT 50`).bind(...w.binds).all<RdvAvant>()).results ?? [])
       : []
     // Tâche (ré)attribuée à quelqu'un : on note qui l'avait avant pour ne prévenir que le nouveau
-    const avantAssign = (b.table === 'taches' || b.table === 'cible_actions') && v.assigne_a
+    const avantAssign = (b.table === 'taches' || b.table === 'cible_actions' || b.table === 'todos') && v.assigne_a
       ? ((await env.DB.prepare(`SELECT id, assigne_a FROM ${b.table}${w.sql} LIMIT 50`).bind(...w.binds).all<{ id: string; assigne_a: string | null }>()).results ?? [])
       : []
     await env.DB.prepare(`UPDATE ${b.table} SET ${keys.map((k) => `${k} = ?`).join(', ')}${w.sql}`)
       .bind(...keys.map((k) => toDb(def.cols[k], v[k])), ...w.binds).run()
+    for (const x of todosFaits) attributions.push({ table: 'todos', id: x.id, assigne_a: '', fait: true })
     for (const x of avantRdv) attributions.push({ table: 'rendezvous', id: x.id, assigne_a: '', avant: x })
     for (const x of avantAssign) if (x.assigne_a !== v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: x.id, assigne_a: String(v.assigne_a) })
     if (avant.length) {
