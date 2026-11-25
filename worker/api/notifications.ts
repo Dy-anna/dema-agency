@@ -376,19 +376,41 @@ export async function rappelsRendezVous(env: Env) {
 }
 
 // ───────── Tâche attribuée : notification personnelle immédiate ─────────
-export interface Attribution { table: 'taches' | 'cible_actions' | 'rendezvous'; id: string; assigne_a: string }
+export interface RdvAvant { id: string; date: string; heure: string | null; statut: string; participants: string }
+export interface Attribution { table: 'taches' | 'cible_actions' | 'rendezvous'; id: string; assigne_a: string; avant?: RdvAvant }
 
 export async function notifierAttributions(env: Env, auteur: User, liste: Attribution[]) {
   const prenom = auteur.nom?.split(' ')[0] || auteur.email
   const entrees: { id: string; ref: string; dest: string; titre: string; texte: string; lien: string }[] = []
   for (const a of liste.slice(0, 30)) {
     if (a.table === 'rendezvous') {
-      const r = await env.DB.prepare('SELECT titre, date, heure, lieu, visio, participants, created_by FROM rendezvous WHERE id = ?')
-        .bind(a.id).first<{ titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; participants: string; created_by: string | null }>()
+      const r = await env.DB.prepare('SELECT titre, date, heure, lieu, visio, participants, created_by, statut FROM rendezvous WHERE id = ?')
+        .bind(a.id).first<{ titre: string; date: string; heure: string | null; lieu: string | null; visio: string | null; participants: string; created_by: string | null; statut: string }>()
       if (!r) continue
-      for (const dest of concernes(r).filter((u) => u !== auteur.id)) {
-        entrees.push({ id: crypto.randomUUID(), ref: a.id, dest, titre: `📅 Nouveau rendez-vous · ${r.titre}`,
-          texte: `${dateCourte(r.date)}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''}${r.lieu ? ` · ${r.lieu}` : r.visio ? ' · en visio' : ''} — de ${prenom}`, lien: `/rendez-vous?id=${a.id}` })
+      const quandRdv = `${dateCourte(r.date)}${r.heure ? ` à ${r.heure.replace(':', 'h')}` : ''}`
+      const ou = r.lieu ? ` · ${r.lieu}` : r.visio ? ' · en visio' : ''
+      const tous = concernes(r).filter((u) => u !== auteur.id)
+      const pousser = (dest: string, titre: string, texte: string) =>
+        entrees.push({ id: crypto.randomUUID(), ref: a.id, dest, titre, texte: `${texte} — de ${prenom}`, lien: `/rendez-vous?id=${a.id}` })
+      if (!a.avant) {
+        // Création : tous les participants
+        for (const dest of tous) pousser(dest, `📅 Nouveau rendez-vous · ${r.titre}`, `${quandRdv}${ou}`)
+        continue
+      }
+      // Modification : nouveaux participants, report, annulation
+      const avant = concernes({ participants: a.avant.participants, created_by: r.created_by })
+      const nouveaux = tous.filter((u) => !avant.includes(u))
+      for (const dest of nouveaux) if (r.statut !== 'annule') pousser(dest, `📅 Tu es ajouté(e) à un rendez-vous · ${r.titre}`, `${quandRdv}${ou}`)
+      const anciens = tous.filter((u) => avant.includes(u))
+      if (r.statut === 'annule' && a.avant.statut !== 'annule') {
+        for (const dest of anciens) pousser(dest, `❌ Rendez-vous annulé · ${r.titre}`, `Il était prévu ${quandRdv}`)
+      } else if (r.statut === 'prevu' && (a.avant.date !== r.date || (a.avant.heure ?? '') !== (r.heure ?? ''))) {
+        const ancien = `${dateCourte(a.avant.date)}${a.avant.heure ? ` à ${a.avant.heure.replace(':', 'h')}` : ''}`
+        for (const dest of anciens) pousser(dest, `🔁 Rendez-vous déplacé · ${r.titre}`, `${ancien} → ${quandRdv}${ou}`)
+        // Les rappels déjà envoyés pour l'ancienne heure doivent pouvoir repartir
+        await env.DB.prepare(`DELETE FROM push_envoyes WHERE cle IN (?, ?, ?)`).bind(`rdv:${a.id}:rappel`, `rdv:${a.id}:jour`, `rdv:${a.id}:veille`).run()
+      } else if (r.statut === 'prevu' && a.avant.statut === 'annule') {
+        for (const dest of anciens) pousser(dest, `↩️ Rendez-vous rétabli · ${r.titre}`, `${quandRdv}${ou}`)
       }
       continue
     }

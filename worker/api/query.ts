@@ -1,7 +1,7 @@
 // API de données générique et sécurisée : tables et colonnes en liste blanche,
 // requêtes paramétrées, droits par rôle (finance réservée aux gérants).
 import { fail, getUser, json, type Env, type User } from '../_lib/auth'
-import { notifierAttributions, notifierCalendrier, type Attribution, type ChangementCalendrier, type EvtNotif } from './notifications'
+import { notifierAttributions, notifierCalendrier, type Attribution, type ChangementCalendrier, type EvtNotif, type RdvAvant } from './notifications'
 
 type ColType = 'text' | 'num' | 'bool' | 'json'
 interface TableDef { cols: Record<string, ColType>; gerantOnly?: boolean; readOnly?: boolean }
@@ -176,12 +176,16 @@ async function run(env: Env, user: User, b: Body, suivi: ChangementCalendrier[] 
     if (!keys.length) return { data: null }
     const w = where(def, b.filters)
     const avant = b.table === 'evenements' ? await lireEvtsWhere(env, w) : []
+    const avantRdv = b.table === 'rendezvous'
+      ? ((await env.DB.prepare(`SELECT id, date, heure, statut, participants FROM rendezvous${w.sql} LIMIT 50`).bind(...w.binds).all<RdvAvant>()).results ?? [])
+      : []
     // Tâche (ré)attribuée à quelqu'un : on note qui l'avait avant pour ne prévenir que le nouveau
     const avantAssign = (b.table === 'taches' || b.table === 'cible_actions') && v.assigne_a
       ? ((await env.DB.prepare(`SELECT id, assigne_a FROM ${b.table}${w.sql} LIMIT 50`).bind(...w.binds).all<{ id: string; assigne_a: string | null }>()).results ?? [])
       : []
     await env.DB.prepare(`UPDATE ${b.table} SET ${keys.map((k) => `${k} = ?`).join(', ')}${w.sql}`)
       .bind(...keys.map((k) => toDb(def.cols[k], v[k])), ...w.binds).run()
+    for (const x of avantRdv) attributions.push({ table: 'rendezvous', id: x.id, assigne_a: '', avant: x })
     for (const x of avantAssign) if (x.assigne_a !== v.assigne_a) attributions.push({ table: b.table as Attribution['table'], id: x.id, assigne_a: String(v.assigne_a) })
     if (avant.length) {
       for (const e of await lireEvts(env, avant.map((x) => x.id))) {
