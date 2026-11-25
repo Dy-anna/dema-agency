@@ -19,6 +19,9 @@ import { DevisPDF, FacturePDF } from './pages/Documents'
 import Planning from './pages/Planning'
 import Fiscalite from './pages/Fiscalite'
 import FeuilleDeRoute from './pages/FeuilleDeRoute'
+import Contrats from './pages/Contrats'
+import ContratEdit from './pages/ContratEdit'
+import ContratPDF from './pages/ContratPDF'
 import type { ReactNode } from 'react'
 
 function GerantOnly({ children }: { children: ReactNode }) {
@@ -37,6 +40,7 @@ export default function App() {
       <Route path="devis/:id/pdf" element={<GerantOnly><DevisPDF /></GerantOnly>} />
       <Route path="factures/:id/pdf" element={<GerantOnly><FacturePDF /></GerantOnly>} />
       <Route path="clients/:id/feuille-de-route" element={<FeuilleDeRoute />} />
+      <Route path="contrats/:id/pdf" element={<GerantOnly><ContratPDF /></GerantOnly>} />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
@@ -52,6 +56,8 @@ export default function App() {
         <Route path="parametres" element={<GerantOnly><Parametres /></GerantOnly>} />
         <Route path="factures" element={<GerantOnly><Factures /></GerantOnly>} />
         <Route path="planning" element={<Planning />} />
+        <Route path="contrats" element={<GerantOnly><Contrats /></GerantOnly>} />
+        <Route path="contrats/:id" element={<GerantOnly><ContratEdit /></GerantOnly>} />
         <Route path="fiscalite" element={<GerantOnly><Fiscalite /></GerantOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

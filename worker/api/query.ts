@@ -16,6 +16,7 @@ const T: Record<string, TableDef> = {
   parametres: { gerantOnly: true, cols: { id: 'text', valeur: 'json' } },
   factures: { gerantOnly: true, cols: { id: 'text', numero: 'text', client_id: 'text', projet_id: 'text', devis_id: 'text', paiement_id: 'text', type: 'text', lignes: 'json', montant_ht: 'num', tva_taux: 'num', montant_ttc: 'num', date_emission: 'text', echeance: 'text', statut: 'text', created_at: 'text' } },
   affectations: { cols: { id: 'text', evenement_id: 'text', profile_id: 'text', nom_libre: 'text', poste: 'text', horaires: 'text', created_at: 'text' } },
+  contrats: { gerantOnly: true, cols: { id: 'text', nom: 'text', telephone: 'text', email: 'text', adresse: 'text', profile_id: 'text', type: 'text', poste: 'text', date_debut: 'text', date_fin: 'text', rythme: 'text', missions: 'text', remuneration: 'text', montant: 'num', accords: 'json', statut: 'text', date_signature: 'text', notes: 'text', created_at: 'text' } },
   objectifs: { gerantOnly: true, cols: { id: 'text', annee: 'num', periode: 'text', numero: 'num', indicateur: 'text', cible: 'num' } },
 }
 // Jointures autorisées : table embarquée -> colonne de clé étrangère

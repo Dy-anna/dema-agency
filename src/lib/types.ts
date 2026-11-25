@@ -155,3 +155,35 @@ export interface Affectation {
   poste: string
   horaires: string | null
 }
+
+export type TypeContrat = 'formation' | 'freelance' | 'stage' | 'benevole'
+export type StatutContrat = 'brouillon' | 'a_signer' | 'signe' | 'termine' | 'annule'
+export interface AccordsContrat {
+  droit_image?: boolean
+  confidentialite?: boolean
+  materiel?: boolean
+  securite?: boolean
+  rushes?: boolean
+  autres?: string
+}
+export interface Contrat {
+  id: string
+  nom: string
+  telephone: string | null
+  email: string | null
+  adresse: string | null
+  profile_id: string | null
+  type: TypeContrat
+  poste: string
+  date_debut: string | null
+  date_fin: string | null
+  rythme: string | null
+  missions: string | null
+  remuneration: 'aucune' | 'defraiement' | 'forfait' | 'jour'
+  montant: number
+  accords: AccordsContrat
+  statut: StatutContrat
+  date_signature: string | null
+  notes: string | null
+  created_at?: string
+}

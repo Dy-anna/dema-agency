@@ -4,14 +4,15 @@ import { db } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useLoad, must } from '../lib/useLoad'
 import { dateFr, isoDate, nomStatutEvenement, nomType } from '../lib/format'
-import type { Affectation, Client, Evenement, Profile } from '../lib/types'
+import { contratDe, couvre } from '../lib/contrats'
+import type { Affectation, Client, Contrat, Evenement, Profile } from '../lib/types'
 
 export const POSTES = ['Cadreur', 'Photographe', 'Pilote drone', 'Assistant', 'Monteur', 'Chef de projet']
 
 const cle = (a: Pick<Affectation, 'profile_id' | 'nom_libre'>) => a.profile_id ?? `libre:${(a.nom_libre ?? '').trim().toLowerCase()}`
 
 export default function Planning() {
-  const { profile } = useAuth()
+  const { profile, isGerant } = useAuth()
   const [mesDates, setMesDates] = useState(false)
   const [ajout, setAjout] = useState<Record<string, { qui: string; libre: string; poste: string; horaires: string }>>({})
   const [msg, setMsg] = useState('')
@@ -25,14 +26,16 @@ export default function Planning() {
       db.from('profiles').select('id, nom, role').order('nom'),
       db.from('clients').select('id, nom, type_prestation'),
     ])
+    const contrats = isGerant ? (must(await db.from('contrats').select('*')) as Contrat[]) : []
     const ids = new Set(evenements.map((e) => e.id))
     return {
       evenements,
       affectations: (must(aff) as Affectation[]).filter((a) => ids.has(a.evenement_id)),
       equipe: must(prof) as Profile[],
       clients: must(cli) as Client[],
+      contrats,
     }
-  }, [today])
+  }, [today, isGerant])
 
   if (error) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Chargement…</p>
@@ -49,6 +52,16 @@ export default function Planning() {
   }
   const enConflit = (a: Affectation) => (parPersonneJour.get(`${cle(a)}|${dateDe(a.evenement_id)}`)?.size ?? 0) > 1
   const conflits = data.affectations.filter(enConflit)
+
+  // Gérants : personnes affectées sans contrat signé couvrant la date
+  const contratManquant = (a: Affectation) => {
+    if (!isGerant) return null
+    if (a.profile_id && data.equipe.find((m) => m.id === a.profile_id)?.role === 'gerant') return null
+    const date = dateDe(a.evenement_id)
+    const c = contratDe(data.contrats, a, nomDe(a), date)
+    if (c && c.statut === 'signe' && couvre(c, date)) return null
+    return c ? { lien: `/contrats/${c.id}`, texte: c.statut === 'signe' ? 'hors contrat' : 'contrat non signé' } : { lien: `/contrats/nouveau?nom=${encodeURIComponent(nomDe(a))}`, texte: 'sans contrat' }
+  }
 
   const visibles = data.evenements.filter((e) => !mesDates || affDe(e.id).some((a) => a.profile_id === profile?.id))
   const sansEquipe = data.evenements.filter((e) => affDe(e.id).length === 0)
@@ -131,6 +144,7 @@ export default function Planning() {
                   {affDe(e.id).map((a) => (
                     <span key={a.id} className={'badge ' + (enConflit(a) ? 'red' : 'indigo')} style={{ fontSize: 13, padding: '5px 6px 5px 12px' }}>
                       {nomDe(a)} · {a.poste}{a.horaires ? ` · ${a.horaires}` : ''}{!a.profile_id ? ' (freelance)' : ''}
+                      {(() => { const m = contratManquant(a); return m && <Link to={m.lien} style={{ marginLeft: 6, color: 'var(--red)', fontWeight: 700 }} title="Créer ou compléter son contrat">⚠ {m.texte}</Link> })()}
                       <button type="button" aria-label={`Retirer ${nomDe(a)}`} onClick={() => retirer(a)}
                         style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 4px', color: 'inherit' }}>×</button>
                     </span>
