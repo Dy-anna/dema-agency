@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  activerPush, chargerAlertes, desactiverPush, envoyerTest, etatPush, marquerLues, toutMarquerLu, type Alerte,
+  activerPush, chargerAlertes, desactiverPush, diagnostic, envoyerTest, etatPush, marquerLues, toutMarquerLu, type Alerte,
 } from '../lib/notifications'
 
 const ICONE: Record<Alerte['categorie'], string> = {
@@ -77,6 +77,7 @@ export default function Cloche() {
           </div>
 
           <div className="cloche-push">
+            {push === null && <span className="small">Vérification des notifications sur cet appareil…</span>}
             {push === 'actif' && (
               <>
                 <span className="small"><strong>🔔 Notifications activées</strong> sur cet appareil : tournages, impayés, relances, contrats. Dates du calendrier ajoutées, confirmées ou annulées : tout de suite. Le reste : à 8 h et 18 h.</span>
@@ -94,12 +95,13 @@ export default function Cloche() {
             )}
             {push === 'installer-ios' && (
               <span className="small">
-                <strong>Sur iPhone</strong>, ajoute d’abord l’app à l’écran d’accueil : dans Safari, touche <strong>Partager</strong> (carré avec flèche) → <strong>Sur l’écran d’accueil</strong>. Ouvre ensuite DEMA depuis l’icône, puis active les notifications ici.
+                <strong>Étape 1 sur iPhone : installer l’app.</strong> Le bouton « Activer » n’apparaît que dans l’app installée. Dans Safari, touche <strong>Partager</strong> (carré avec flèche) → <strong>Sur l’écran d’accueil</strong> → Ajouter. Ferme Safari, ouvre <strong>DEMA</strong> depuis l’icône, reconnecte-toi, puis reviens dans cette cloche.
               </span>
             )}
             {push === 'refuse' && <span className="small">Les notifications sont bloquées pour ce site. Autorise-les dans les réglages du navigateur ou du téléphone, puis reviens ici.</span>}
             {push === 'non-supporte' && <span className="small">Ce navigateur ne gère pas les notifications push. Sur iPhone, utilise Safari (iOS 16.4 ou plus) ; sur Android, Chrome.</span>}
             {msg && <span className="small" style={{ fontWeight: 600 }}>{msg}</span>}
+            {push !== null && push !== 'actif' && <span className="small" style={{ opacity: .7 }}>Appareil : {diagnostic()}</span>}
           </div>
 
           <div className="cloche-liste">

@@ -43,12 +43,30 @@ const versUint8 = (b64: string) => {
 }
 
 export async function etatPush(): Promise<'non-supporte' | 'installer-ios' | 'refuse' | 'actif' | 'inactif'> {
-  if (doitInstallerSurIOS()) return 'installer-ios'
-  if (!pushSupporte()) return 'non-supporte'
-  if (Notification.permission === 'denied') return 'refuse'
-  const reg = await navigator.serviceWorker.getRegistration()
-  const sub = await reg?.pushManager.getSubscription()
-  return sub && Notification.permission === 'granted' ? 'actif' : 'inactif'
+  try {
+    if (doitInstallerSurIOS()) return 'installer-ios'
+    if (!pushSupporte()) return 'non-supporte'
+    if (Notification.permission === 'denied') return 'refuse'
+    // Ne jamais rester bloqué : au-delà de 3 s on propose quand même d'activer
+    const sub = await Promise.race([
+      navigator.serviceWorker.getRegistration().then((reg) => reg?.pushManager.getSubscription() ?? null),
+      new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+    ])
+    return sub && Notification.permission === 'granted' ? 'actif' : 'inactif'
+  } catch {
+    return pushSupporte() ? 'inactif' : 'non-supporte'
+  }
+}
+
+/** Infos affichées pour aider à dépanner */
+export function diagnostic() {
+  const ios = navigator.userAgent.match(/OS (\d+)_(\d+)/)
+  return [
+    ios ? `iOS ${ios[1]}.${ios[2]}` : null,
+    estInstalle() ? 'app installée' : 'navigateur',
+    'Notification' in window ? 'notifications OK' : 'pas de notifications',
+    'PushManager' in window ? 'push OK' : 'pas de push',
+  ].filter(Boolean).join(' · ')
 }
 
 const nomAppareil = () => {
